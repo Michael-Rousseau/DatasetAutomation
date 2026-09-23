@@ -1,0 +1,8 @@
+.venv/
+__pycache__/
+*.pyc
+target/
+*.so
+*.pyd
+data/*
+!data/.gitkeep

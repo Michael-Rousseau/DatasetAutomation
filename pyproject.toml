@@ -1,0 +1,30 @@
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "dataset-automation"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "numpy>=2",
+    "opencv-python>=4.10",
+]
+
+[dependency-groups]
+dev = [
+    "maturin>=1.9,<2",
+]
+
+[tool.maturin]
+python-source = "python"
+module-name = "dataset_automation._core"
+features = ["pyo3/extension-module"]
+
+[tool.uv]
+# Rebuild the Rust extension on `uv sync` when Rust sources change.
+cache-keys = [
+    { file = "pyproject.toml" },
+    { file = "Cargo.toml" },
+    { file = "src/**/*.rs" },
+]
