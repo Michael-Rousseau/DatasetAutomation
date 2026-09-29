@@ -23,12 +23,21 @@ uv run python main.py data/image.png
 
 Put local images in `data/`. Everything in it is ignored by git.
 
+## Tests and lint
+
+```sh
+uv run pytest
+cargo test
+uv run ruff check . && uv run ruff format --check .
+```
+
 ## Layout
 
 ```
 main.py                         exploration entry point
 python/dataset_automation/      Python package
 src/lib.rs                      Rust extension, imported as dataset_automation._core
+tests/                          Python tests (pytest)
 pyproject.toml                  Python project and maturin config
 Cargo.toml                      Rust crate
 ```
