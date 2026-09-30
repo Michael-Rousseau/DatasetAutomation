@@ -19,7 +19,8 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - uses: astral-sh/setup-uv@v10
+      # setup-uv publishes full versions only (no floating `v10` tag).
+      - uses: astral-sh/setup-uv@v10.2.0
 
       # opencv-python (non-headless, main.py uses cv2.imshow) needs libGL at import time.
       - name: Install OpenCV system libraries
