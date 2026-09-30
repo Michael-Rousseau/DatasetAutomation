@@ -7,3 +7,7 @@ target/
 data/*
 !data/.gitkeep
 outputs/
+# Shared database files (see dataset_automation.storage)
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm

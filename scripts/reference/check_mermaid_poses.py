@@ -7,8 +7,8 @@ from pathlib import Path
 
 import numpy as np
 
-from dataset_automation.plots import plot_camera_top_view, plot_optical_axis_z
-from dataset_automation.poses import CameraPoses, load_camera_poses
+from dataset_automation.reference.plots import plot_camera_top_view, plot_optical_axis_z
+from dataset_automation.reference.poses import CameraPoses, load_camera_poses
 
 POSES_PATH = Path("data/mermaid/107177.xml")
 OUTPUT_DIR = Path("outputs")

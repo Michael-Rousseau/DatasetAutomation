@@ -3,14 +3,14 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from dataset_automation.poses import (
+from dataset_automation.reference.poses import (
     camera_centres,
     load_camera_poses,
     optical_axes,
     parse_camera_poses,
 )
 
-MERMAID_POSES = Path(__file__).parents[1] / "data" / "mermaid" / "107177.xml"
+MERMAID_POSES = Path(__file__).parents[2] / "data" / "mermaid" / "107177.xml"
 
 # Camera A: 90° rotation about z, centre (1, 2, 3). Camera B: looks straight down, no covariance.
 TWO_CAMERAS_XML = """<?xml version="1.0" encoding="UTF-8"?>

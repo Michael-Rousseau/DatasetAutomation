@@ -1,7 +1,7 @@
 import numpy as np
 from matplotlib.figure import Figure
 
-from dataset_automation.poses import CameraPoses, camera_centres, optical_axes
+from dataset_automation.reference.poses import CameraPoses, camera_centres, optical_axes
 
 # Arrows show the horizontal part of the viewing direction; for nadir views they are short.
 ARROW_LENGTH_M = 0.5

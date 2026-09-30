@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from dataset_automation.images import match_poses_to_images
+from dataset_automation.reference.images import match_poses_to_images
 
 
 def test_matches_label_to_jpg_stem_case_insensitive() -> None:

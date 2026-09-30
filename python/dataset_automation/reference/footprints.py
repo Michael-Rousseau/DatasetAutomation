@@ -2,9 +2,13 @@ import cv2
 import numpy as np
 from shapely import Polygon
 
-from dataset_automation.intrinsics import Intrinsics, camera_matrix, opencv_distortion
-from dataset_automation.poses import CameraPoses, camera_centres
-from dataset_automation.seafloor import SeafloorSurface
+from dataset_automation.reference.intrinsics import (
+    Intrinsics,
+    camera_matrix,
+    opencv_distortion,
+)
+from dataset_automation.reference.poses import CameraPoses, camera_centres
+from dataset_automation.reference.seafloor import SeafloorSurface
 
 # OpenCV's default (5 iterations) leaves ~0.1 px of round-trip error at the corners of this
 # wide-angle lens; these settings bring it below 1e-9 px.

@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: astral-sh/setup-uv@v10
+
+      # opencv-python (non-headless, main.py uses cv2.imshow) needs libGL at import time.
+      - name: Install OpenCV system libraries
+        run: sudo apt-get update && sudo apt-get install -y libgl1
+
+      - name: Install the project
+        run: uv sync --locked
+
+      # cargo test links the test binary against libpython: use the project interpreter.
+      - name: Point PyO3 at the project interpreter
+        run: |
+          echo "PYO3_PYTHON=$PWD/.venv/bin/python" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$(.venv/bin/python -c 'import sysconfig; print(sysconfig.get_config_var("LIBDIR"))')" >> "$GITHUB_ENV"
+
+      - name: Python lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Python types
+        run: uv run pyright
+
+      - name: Python tests
+        run: uv run pytest
+
+      - name: Rust lint
+        run: |
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+
+      - name: Rust tests
+        run: cargo test

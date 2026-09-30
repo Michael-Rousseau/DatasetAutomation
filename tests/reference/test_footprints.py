@@ -2,21 +2,21 @@ import cv2
 import numpy as np
 import pytest
 
-from dataset_automation.footprints import (
+from dataset_automation.reference.footprints import (
     camera_rays,
     compute_footprints,
     footprint_polygon,
     image_border_pixels,
     invalid_footprints,
 )
-from dataset_automation.intrinsics import (
+from dataset_automation.reference.intrinsics import (
     MERMAID_INTRINSICS,
     Intrinsics,
     camera_matrix,
     opencv_distortion,
 )
-from dataset_automation.poses import CameraPoses
-from dataset_automation.seafloor import HorizontalPlane
+from dataset_automation.reference.poses import CameraPoses
+from dataset_automation.reference.seafloor import HorizontalPlane
 
 PINHOLE = Intrinsics(
     width_px=400,

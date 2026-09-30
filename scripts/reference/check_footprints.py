@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 from matplotlib.figure import Figure
 
-from dataset_automation.footprints import (
+from dataset_automation.reference.footprints import (
     DEFAULT_SAMPLES_PER_SIDE,
     camera_rays,
     compute_footprints,
@@ -13,9 +13,12 @@ from dataset_automation.footprints import (
     image_border_pixels,
     invalid_footprints,
 )
-from dataset_automation.intrinsics import MERMAID_INTRINSICS
-from dataset_automation.poses import camera_centres, load_camera_poses
-from dataset_automation.seafloor import altitude_from_gsd, plane_below_lowest_cameras
+from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
+from dataset_automation.reference.poses import camera_centres, load_camera_poses
+from dataset_automation.reference.seafloor import (
+    altitude_from_gsd,
+    plane_below_lowest_cameras,
+)
 
 POSES_PATH = Path("data/mermaid/107177.xml")
 OUTPUT_DIR = Path("outputs")

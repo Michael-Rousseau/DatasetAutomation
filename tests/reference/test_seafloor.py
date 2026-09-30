@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from dataset_automation.seafloor import (
+from dataset_automation.reference.seafloor import (
     HorizontalPlane,
     altitude_from_gsd,
     plane_below_lowest_cameras,

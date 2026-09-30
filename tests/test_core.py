@@ -9,4 +9,4 @@ def test_add_returns_sum_computed_in_rust() -> None:
 
 def test_add_rejects_non_numeric_argument() -> None:
     with pytest.raises(TypeError):
-        _core.add("a", 1.0)
+        _core.add("a", 1.0)  # pyright: ignore[reportArgumentType] -- wrong type on purpose

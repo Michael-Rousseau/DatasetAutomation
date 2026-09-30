@@ -1,28 +1,10 @@
 use pyo3::prelude::*;
 
-// Kept free of PyO3 types so it can be unit-tested and reused without a Python interpreter.
-pub fn add(a: f64, b: f64) -> f64 {
-    a + b
-}
-
-#[pyfunction]
-#[pyo3(name = "add")]
-fn add_py(a: f64, b: f64) -> f64 {
-    add(a, b)
-}
+// One Rust file per module, each exposing `register`: adding a module touches a single line here.
+mod example;
 
 #[pymodule]
 fn _core(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(add_py, module)?)?;
+    example::register(module)?;
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_add() {
-        assert_eq!(add(2.0, 3.0), 5.0);
-    }
 }

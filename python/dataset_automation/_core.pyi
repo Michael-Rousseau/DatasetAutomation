@@ -1,0 +1,3 @@
+# Type stub for the Rust extension (src/*.rs): update it with every #[pyfunction] you add.
+
+def add(a: float, b: float) -> float: ...
