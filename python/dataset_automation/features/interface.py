@@ -64,8 +64,10 @@ class Matches:
 
 
 class FeatureExtractor(Protocol):
-    # Stored in the `features.detector` column, so it must be stable across runs.
-    name: str
+    # Stored in the `features.detector` column, so it must be stable across runs. Read-only,
+    # so frozen dataclasses (and plain class attributes) satisfy the protocol.
+    @property
+    def name(self) -> str: ...
 
     def extract(
         self, image: np.ndarray, mask: np.ndarray | None = None
@@ -73,6 +75,7 @@ class FeatureExtractor(Protocol):
 
 
 class FeatureMatcher(Protocol):
-    name: str
+    @property
+    def name(self) -> str: ...
 
     def match(self, features_a: Features, features_b: Features) -> Matches: ...

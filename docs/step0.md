@@ -114,3 +114,27 @@ uv run pyright                                      # type check
 uv run python scripts/reference/check_mermaid_poses.py   # step 1: pose convention check + plots in outputs/
 uv run python scripts/reference/check_footprints.py      # step 2b: footprint stats + plot in outputs/
 ```
+
+## Scope extension — feature layer (branch `a/sift-features`)
+
+The reference-overlap roadmap above is paused after step 2c: the feature layer comes first because
+persons B and C depend on it (`01_overlap_engine.md`, step 1). Steps 2d/2e resume when the
+feature-based overlap needs to be evaluated.
+
+- **SIFT localization bias**: OpenCV's default SIFT upsamples the first octave in a way that shifts
+  every keypoint by ~+0.25 px (measured on Gaussian blobs with known centres). `SiftExtractor` uses
+  `enable_precise_upscale=True`, which brings the error to ~0.00 px.
+- **Downscaled detection**: keypoints are mapped back with `(x + 0.5) / f − 0.5` (pixel centres on
+  integers); a test checks there is no residual bias between scale 1 and scale 0.5.
+- **`nfeatures` is approximate**: OpenCV keeps ties at the cut-off, so `SiftExtractor` enforces
+  `max_keypoints` itself by keeping the strongest responses.
+- **SEANOE downloads**: a single large request stalls, and each connection is throttled to
+  ~0.3 MB/s. `scripts/fetch_mermaid.py` fetches 4 MB byte ranges over 8 connections (~1.6 MB/s)
+  and resumes interrupted downloads.
+- **SIFT defaults** (`scripts/features/check_sift_mermaid.py`, 40 images sampled over the dive,
+  gaps of 1 and 5 images): OpenCV's contrast threshold 0.04 leaves low-contrast sand with 16 keypoints
+  (p5) and 1 match at gap 5; full resolution barely helps (4 matches). A threshold of 0.01 gives 56
+  matches at gap 5 (p5). Capping at the 8000 strongest keypoints keeps ~all gap-1 matches (865 vs 888
+  at p5) for 0.08 s/pair instead of 0.54 s. Defaults: `scale=0.5`, `contrast_threshold=0.01`,
+  `max_keypoints=8000`; sequential mode with k = 5 on Mermaid ≈ 8 min of matching.
+- **Images**: `match_poses_to_images` pairs all 1,244 poses with their JPG (0 missing, 0 extra).
