@@ -131,10 +131,32 @@ feature-based overlap needs to be evaluated.
 - **SEANOE downloads**: a single large request stalls, and each connection is throttled to
   ~0.3 MB/s. `scripts/fetch_mermaid.py` fetches 4 MB byte ranges over 8 connections (~1.6 MB/s)
   and resumes interrupted downloads.
-- **SIFT defaults** (`scripts/features/check_sift_mermaid.py`, 40 images sampled over the dive,
+- **SIFT defaults** (`scripts/features/check_features_mermaid.py`, 40 images sampled over the dive,
   gaps of 1 and 5 images): OpenCV's contrast threshold 0.04 leaves low-contrast sand with 16 keypoints
   (p5) and 1 match at gap 5; full resolution barely helps (4 matches). A threshold of 0.01 gives 56
   matches at gap 5 (p5). Capping at the 8000 strongest keypoints keeps ~all gap-1 matches (865 vs 888
   at p5) for 0.08 s/pair instead of 0.54 s. Defaults: `scale=0.5`, `contrast_threshold=0.01`,
   `max_keypoints=8000`; sequential mode with k = 5 on Mermaid ≈ 8 min of matching.
 - **Images**: `match_poses_to_images` pairs all 1,244 poses with their JPG (0 missing, 0 extra).
+
+## Harris baseline (branch `a/harris-features`)
+
+- `HarrisSiftExtractor`: Harris corners (`goodFeaturesToTrack`) described by upright SIFT
+  descriptors, sharing SIFT's preprocessing (`features/preprocessing.py`) and matcher.
+- **Sub-pixel refinement**: `cv2.cornerSubPix` models a corner as two straight edges. On
+  seafloor-like texture it left half the corners unmoved and threw 10 % more than 4.5 px away
+  (median error 0.67 px on a sub-pixel shift, no better than integer corners, 40 % fewer matches).
+  A per-axis parabola fitted to the Harris response gives 0.23–0.28 px and never moves a corner by
+  more than half a pixel.
+- **Result** (`scripts/features/check_features_mermaid.py`, homography inliers, MAGSAC 3 px):
+
+  | Extractor | inliers gap 1 (p5 / median) | inliers gap 5 (p5 / median) |
+  |---|---|---|
+  | SIFT defaults | 128 / 457 | 7 / 64 |
+  | Harris + upright SIFT (best setting) | 11 / 221 | 0 / 4 |
+
+  Without orientation or scale, Harris descriptors break between images 5 apart (heading and
+  altitude change). SIFT stays the default; Harris is kept as a comparison baseline.
+- **For pairwise overlap**: even with SIFT only ~28 % of consecutive matches fit one homography
+  (457 inliers of 1,604 matches): relief breaks the planar-scene assumption, as expected in
+  `01_overlap_engine.md`.

@@ -1,11 +1,13 @@
-"""Measure SIFT settings on Mermaid images sampled over the whole dive.
+"""Compare feature extractors on Mermaid images sampled over the whole dive.
 
-    uv run python scripts/features/check_sift_mermaid.py [--samples 40]
+    uv run python scripts/features/check_features_mermaid.py [--samples 40]
 
-For each setting: keypoints per image, and matches between images 1 and 5 apart (the
-sequential mode compares each image with its k = 5 neighbours). Low percentiles matter most:
-they are the low-contrast sand images. Also draws the matches of one consecutive pair in
-outputs/features_matches.png. This is the measurement behind SiftExtractor's defaults.
+For each setting: keypoints per image, then matches and homography inliers between images 1
+and 5 apart (the sequential mode compares each image with its k = 5 neighbours). Inliers are
+the fair comparison: a noisy detector can produce many matches, not many consistent ones.
+Low percentiles matter most: they are the low-contrast sand images. Also draws the matches of
+one consecutive pair in outputs/features_matches.png. This is the measurement behind the
+extractors' defaults (docs/step0.md).
 """
 
 import argparse
@@ -16,7 +18,8 @@ import cv2
 import numpy as np
 from matplotlib.figure import Figure
 
-from dataset_automation.features.interface import Features, Matches
+from dataset_automation.features.harris import HarrisSiftExtractor
+from dataset_automation.features.interface import FeatureExtractor, Features, Matches
 from dataset_automation.features.matching import RatioTestMatcher
 from dataset_automation.features.sift import SiftExtractor
 from dataset_automation.reference.images import match_poses_to_images
@@ -26,12 +29,15 @@ POSES_PATH = Path("data/mermaid/107177.xml")
 IMAGES_DIRECTORY = Path("data/mermaid/images")
 OUTPUT_DIR = Path("outputs")
 GAPS = (1, 5)
-SETTINGS = {
+# Measurement only: estimating overlap from the homography belongs to the overlap package.
+INLIER_THRESHOLD_PX = 3.0
+SETTINGS: dict[str, FeatureExtractor] = {
     "OpenCV defaults at half resolution": SiftExtractor(
         max_keypoints=0, contrast_threshold=0.04
     ),
     "SiftExtractor defaults": SiftExtractor(),
     "defaults without keypoint cap": SiftExtractor(max_keypoints=0),
+    "Harris + upright SIFT defaults": HarrisSiftExtractor(),
 }
 MATCHES_DRAWN = 300
 
@@ -59,9 +65,23 @@ def percentiles(values: list[int]) -> str:
     return f"p5 {low:5d} / median {median:5d}"
 
 
+def homography_inliers(
+    features_a: Features, features_b: Features, matches: Matches
+) -> int:
+    if len(matches) < 4:
+        return 0
+    _, inlier_mask = cv2.findHomography(
+        features_a.keypoints[matches.index_pairs[:, 0]],
+        features_b.keypoints[matches.index_pairs[:, 1]],
+        cv2.USAC_MAGSAC,
+        INLIER_THRESHOLD_PX,
+    )
+    return 0 if inlier_mask is None else int(inlier_mask.sum())
+
+
 def measure(
     name: str,
-    extractor: SiftExtractor,
+    extractor: FeatureExtractor,
     images: dict[int, np.ndarray],
     starts: list[int],
 ) -> None:
@@ -76,9 +96,14 @@ def measure(
     )
     for gap in GAPS:
         start = time.perf_counter()
-        counts = [len(matcher.match(features[i], features[i + gap])) for i in starts]
+        pairs = [(features[i], features[i + gap]) for i in starts]
+        matches = [matcher.match(a, b) for a, b in pairs]
         match_s = (time.perf_counter() - start) / len(starts)
-        print(f"  matches, gap {gap}     {percentiles(counts)}   {match_s:.2f} s/pair")
+        inliers = [homography_inliers(a, b, m) for (a, b), m in zip(pairs, matches)]
+        print(
+            f"  matches, gap {gap}     {percentiles([len(m) for m in matches])}   {match_s:.2f} s/pair"
+        )
+        print(f"  inliers, gap {gap}     {percentiles(inliers)}")
 
 
 def plot_matches(
