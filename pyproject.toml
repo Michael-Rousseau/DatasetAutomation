@@ -13,6 +13,13 @@ dependencies = [
     "shapely>=2.1.2",
 ]
 
+[project.optional-dependencies]
+cleaning = [
+    "torch>=2.14.0",
+    "torchvision>=0.29.0",
+    "transformers>=5.17.0",
+]
+
 [dependency-groups]
 dev = [
     "maturin>=1.9.4,<2",
