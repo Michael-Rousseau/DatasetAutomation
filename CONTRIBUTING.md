@@ -11,8 +11,9 @@ Each block lives in its own package, so parallel branches touch different files.
 |---|---|---|
 | `features/` | **shared** | `Features`, `Matches`, `FeatureExtractor`, `FeatureMatcher` |
 | `storage/` | **shared** | SQLite schema, `open_database`, `start_run` |
+| `camera/` | **shared** | camera model (Metashape convention), undistortion, image outline |
 | `reference/` | A | reference overlap from camera poses (Mermaid) |
-| `overlap/` | A | feature-based overlap, dedup, extraction (to create) |
+| `overlap/` | A | feature-based pairwise overlap; dedup and extraction to come |
 | `cleaning/`, `tracking/` | B | masks, tracks (to create) |
 | `ingestion/`, `targets/`, `export/` | C | readers, targets and GSD, iFDO (to create) |
 
@@ -20,7 +21,7 @@ Create your package (and `tests/<package>/`) in your own branch when you start. 
 added by B (ORB, SuperPoint) go in `features/<detector>.py`: one file each, behind the shared
 interface.
 
-**Shared packages are contracts.** A change to `features/` or `storage/` needs an approval from
+**Shared packages are contracts.** A change to `features/`, `storage/` or `camera/` needs an approval from
 the two other people. Changing an existing table bumps `SCHEMA_VERSION` in `storage/schema.py`.
 
 ## Branches and pull requests
