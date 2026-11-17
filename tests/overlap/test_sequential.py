@@ -13,10 +13,9 @@ from dataset_automation.overlap.sequential import (
     SequenceImage,
     estimate_sequential_overlaps,
 )
-from tests.overlap.scenes import HEIGHT, WIDTH, scene, view_pair
+from tests.overlap.scenes import HEIGHT, STEP_PX, WIDTH, scene, sliding_views
 
 SIZE = (WIDTH, HEIGHT)
-STEP_PX = 80
 EXTRACTOR = SiftExtractor(scale=1.0)
 
 
@@ -57,15 +56,10 @@ def index_pairs(image_count: int, neighbour_count: int) -> list[tuple[int, int]]
 
 
 def sliding_camera(image_count: int, world: np.ndarray) -> list[SequenceImage]:
-    """A camera moving right by STEP_PX per image over a flat scene."""
-    images = []
-    for position in range(image_count):
-        shift = np.array(
-            [[1.0, 0.0, -STEP_PX * position], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        )
-        _, image = view_pair(shift, world)
-        images.append(SequenceImage(EXTRACTOR.extract(image), SIZE))
-    return images
+    return [
+        SequenceImage(EXTRACTOR.extract(image), SIZE)
+        for image in sliding_views(image_count, world)
+    ]
 
 
 def test_pairs_each_image_with_its_next_neighbours() -> None:

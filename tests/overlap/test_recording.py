@@ -13,8 +13,8 @@ from dataset_automation.overlap.sequential import (
     estimate_sequential_overlaps,
 )
 from dataset_automation.storage.database import RunId, open_database, start_run
-from tests.overlap.scenes import WIDTH, scene
-from tests.overlap.test_sequential import STEP_PX, sliding_camera
+from tests.overlap.scenes import STEP_PX, WIDTH, scene
+from tests.overlap.test_sequential import sliding_camera
 
 PAIR_COLUMNS = (
     "SELECT image_a_id, image_b_id, method, inlier_count, overlap_a_in_b, "
