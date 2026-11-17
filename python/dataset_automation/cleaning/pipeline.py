@@ -24,7 +24,6 @@ from dataset_automation.storage.database import RunId, start_run
 
 MODULE = "cleaning"
 COMBINED = "all"
-IMAGE_SUFFIXES = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png"}
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +39,6 @@ class MaskingReport:
     run_id: RunId
     masked: int
     unreadable: list[Path] = field(default_factory=list)
-
-
-def image_files(root: Path) -> list[Path]:
-    """JPEG and PNG files below `root`, any depth, in a stable order."""
-    return sorted(
-        path
-        for path in root.rglob("*")
-        if path.is_file() and path.suffix.lower() in IMAGE_SUFFIXES
-    )
 
 
 def images_under(connection: sqlite3.Connection, image_root: Path) -> list[ImageToMask]:

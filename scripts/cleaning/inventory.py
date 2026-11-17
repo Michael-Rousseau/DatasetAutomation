@@ -14,8 +14,8 @@ from pathlib import Path
 import cv2
 
 from dataset_automation.cleaning.inventory import every_nth, overlay, presence
-from dataset_automation.cleaning.pipeline import image_files
 from dataset_automation.cleaning.segmenter import METHODS, load_segmenter
+from dataset_automation.storage.images import image_files
 
 OUTPUT_DIR = Path("outputs/cleaning/inventory")
 

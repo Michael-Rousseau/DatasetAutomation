@@ -10,7 +10,6 @@ from dataset_automation.cleaning.masks import read_unwanted
 from dataset_automation.cleaning.pipeline import (
     COMBINED,
     ImageToMask,
-    image_files,
     images_under,
     mask_images,
 )
@@ -146,11 +145,3 @@ def test_images_under_keeps_only_files_below_the_root(
     found = images_under(database, tmp_path / "images")
 
     assert [image.path for image in found] == [inside]
-
-
-def test_image_files_finds_jpeg_and_png_at_any_depth(tmp_path: Path) -> None:
-    first = write_image(tmp_path / "b" / "IMG_2.JPG")
-    second = write_image(tmp_path / "a.png")
-    (tmp_path / "notes.txt").write_text("not an image")
-
-    assert image_files(tmp_path) == [second, first]

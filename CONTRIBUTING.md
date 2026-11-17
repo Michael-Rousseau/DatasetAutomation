@@ -10,7 +10,7 @@ Each block lives in its own package, so parallel branches touch different files.
 | Package | Owner | Content |
 |---|---|---|
 | `features/` | **shared** | `Features`, `Matches`, `FeatureExtractor`, `FeatureMatcher` |
-| `storage/` | **shared** | SQLite schema, `open_database`, `start_run` |
+| `storage/` | **shared** | SQLite schema, `open_database`, `start_run`, image file registration |
 | `camera/` | **shared** | camera model (Metashape convention), undistortion, image outline |
 | `reference/` | A | reference overlap from camera poses (Mermaid) |
 | `overlap/` | A | feature-based pairwise overlap; dedup and extraction to come |
