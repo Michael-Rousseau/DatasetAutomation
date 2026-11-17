@@ -5,12 +5,12 @@ from pathlib import Path
 import numpy as np
 from matplotlib.figure import Figure
 
+from dataset_automation.camera.frame import image_border_pixels
 from dataset_automation.reference.footprints import (
     DEFAULT_SAMPLES_PER_SIDE,
     camera_rays,
     compute_footprints,
     footprint_polygon,
-    image_border_pixels,
     invalid_footprints,
 )
 from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS

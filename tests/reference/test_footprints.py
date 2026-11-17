@@ -1,19 +1,13 @@
-import cv2
 import numpy as np
 import pytest
 
+from dataset_automation.camera.frame import image_border_pixels
+from dataset_automation.camera.intrinsics import Intrinsics
 from dataset_automation.reference.footprints import (
     camera_rays,
     compute_footprints,
     footprint_polygon,
-    image_border_pixels,
     invalid_footprints,
-)
-from dataset_automation.reference.intrinsics import (
-    MERMAID_INTRINSICS,
-    Intrinsics,
-    camera_matrix,
-    opencv_distortion,
 )
 from dataset_automation.reference.poses import CameraPoses
 from dataset_automation.reference.seafloor import HorizontalPlane
@@ -46,51 +40,6 @@ def make_poses(rotations: list[np.ndarray], centres: list[list[float]]) -> Camer
         rotation_covariance=unknown,
         location_covariance=unknown,
     )
-
-
-def test_border_starts_at_top_left_corner_and_runs_clockwise() -> None:
-    border = image_border_pixels(400, 300, samples_per_side=4)
-
-    assert border.shape == (16, 2)
-    np.testing.assert_allclose(border[0], [-0.5, -0.5])
-    np.testing.assert_allclose(border[4], [399.5, -0.5])
-    np.testing.assert_allclose(border[8], [399.5, 299.5])
-    np.testing.assert_allclose(border[12], [-0.5, 299.5])
-
-
-def test_opencv_distortion_swaps_metashape_tangential_coefficients() -> None:
-    k1, k2, p1, p2, k3 = opencv_distortion(MERMAID_INTRINSICS)
-
-    assert (k1, k2, k3) == (
-        MERMAID_INTRINSICS.k1,
-        MERMAID_INTRINSICS.k2,
-        MERMAID_INTRINSICS.k3,
-    )
-    assert (p1, p2) == (MERMAID_INTRINSICS.p2, MERMAID_INTRINSICS.p1)
-
-
-def test_principal_point_moves_half_pixel_into_opencv_convention() -> None:
-    matrix = camera_matrix(MERMAID_INTRINSICS)
-
-    assert matrix[0, 2] == pytest.approx(1920 - 12.752 - 0.5)
-    assert matrix[1, 2] == pytest.approx(1440 - 16.6962 - 0.5)
-
-
-def test_mermaid_border_rays_project_back_onto_border_pixels() -> None:
-    border = image_border_pixels(
-        MERMAID_INTRINSICS.width_px, MERMAID_INTRINSICS.height_px, 25
-    )
-
-    rays = camera_rays(MERMAID_INTRINSICS, border)
-    projected, _ = cv2.projectPoints(
-        rays,
-        np.zeros(3),
-        np.zeros(3),
-        camera_matrix(MERMAID_INTRINSICS),
-        opencv_distortion(MERMAID_INTRINSICS),
-    )
-
-    np.testing.assert_allclose(projected.reshape(-1, 2), border, atol=1e-6)
 
 
 def test_undistorted_nadir_footprint_is_the_image_rectangle_scaled_by_altitude() -> (

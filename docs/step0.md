@@ -160,3 +160,95 @@ feature-based overlap needs to be evaluated.
 - **For pairwise overlap**: even with SIFT only ~28 % of consecutive matches fit one homography
   (457 inliers of 1,604 matches): relief breaks the planar-scene assumption, as expected in
   `01_overlap_engine.md`.
+
+## Pairwise overlap (branch `a/pairwise-overlap`)
+
+- **`camera/`** (new shared package): the Metashape camera model, undistortion and image outline
+  moved out of `reference/`; `MERMAID_INTRINSICS` stays in `reference/`. Mermaid's lens is barrel
+  in the field (edge midpoints move ~65 px outwards when undistorted) but turns back near the
+  corners (k2 > 0: corners move ~24 px inwards).
+- **`overlap/pairwise.py`**: `estimate_homography_overlap` (MAGSAC, undistorted pixels) and
+  `estimate_hull_overlap` (fundamental-matrix inliers, so no planar assumption). Each share is
+  measured in its own image's frame; unknown overlap is `None` with a reason, never a number.
+- **Validation of the homography**: no vertex beyond the horizon, no mirroring, area ratio within
+  ×8 (largest footprint area ratio between overlapping Mermaid images: 5.2), ≥ 15 inliers.
+  MAGSAC threshold 8 px: relief creates parallax a single homography cannot explain; 3 → 8 px cut
+  unknowns at 20–40 % overlap from 80 % to 73 % with the same error, 15 px accepted false overlaps.
+- **Repeated targets trap**: GCP plates 28 and 30 share the same pattern; matched to each other
+  they gave a consistent homography and a 79 % overlap for two images that do not overlap. All
+  inliers sat on the plate: hull / common area 0.005, vs ≥ 0.026 for the 102 correct estimates.
+  Pairs below `MIN_INLIER_SPREAD = 0.01` are unknown. Only one such case observed so far.
+- **Result** (`scripts/overlap/evaluate_pairwise_mermaid.py`, 150 pairs, |error| median):
+
+  | Reference overlap | homography raw | homography undistorted | inlier hull | unknown (undistorted) |
+  |---|---|---|---|---|
+  | 0.8–1.0 | 0.023 | 0.031 | 0.174 (bias −0.17) | 0 % |
+  | 0.6–0.8 | 0.038 | 0.044 | 0.212 (bias −0.21) | 11 % |
+  | 0.4–0.6 | 0.059 | 0.060 | 0.187 | 30 % |
+  | 0.2–0.4 | 0.115 | 0.076 | 0.086 | 73 % |
+  | 0.0–0.2 | – | 0.058 (1 pair) | 0.035 | 95 % |
+
+  (raw column measured at 3 px, the others at 8 px.)
+
+  Undistortion gives +23 % inliers (median) and more inliers in 85 % of pairs, so the model fits
+  the images better; it does not improve agreement with the reference, whose own error (horizontal
+  plane vs ≥ 2.7 m of relief) dominates at this level. The inlier hull underestimates by ~20 points
+  (points cover 15–30 % of the common area). Five pairs keep an error > 0.15 with a normal inlier
+  spread (e.g. 168→170: reference 0.86, estimate 0.52): not explained yet, candidates are relief and
+  the reference plane.
+- **Honest limit**: reliable only for nearly consecutive images. Enough for deduplication (≥ 95 %),
+  borderline for the ~80 % extraction, not enough below ~40 % overlap (60–73 % unknown).
+- **Keypoint cap trade-off** (measured, not applied): without the 8000 cap, unknowns at 40–60 %
+  overlap drop from 30 % to 17 % (60–80 %: 11 % → 5 %), but brute-force matching is 7× slower
+  (0.54 vs 0.08 s/pair, ~1 h vs 8 min for k = 5 on Mermaid). To revisit with a faster matcher
+  (FLANN) in its own branch, since it changes the SIFT default used by B. Other levers to measure:
+  masking GCP plates (they dominate matches), better descriptors, a 3D model instead of a homography.
+
+## Notes for the n → n mode (loop closures)
+
+- The robot / diver path must be encoded, both ways:
+  - **sequence graph**: capture order as edges between consecutive images, the structure the
+    sequential overlaps live on;
+  - **positions** when available: reference poses (Mermaid, Eiffel Tower), navigation from the ROS
+    bags (AQUALOC IMU and pressure, C's ingestion), or a trajectory chained from sequential overlaps
+    (visual odometry).
+- Candidate loop pairs are then images close in space but far apart in time.
+- **Mermaid has real revisits**: per the trajectory in report 107174, passes 0–207 and 832–1039
+  fly over the same areas (`scripts/overlap/explore_mermaid_dive.py revisits` tests them).
+- **The encoded path drifts** (navigation or chained odometry accumulates error): use it to
+  pre-select candidates, never to decide that two images overlap. The images decide.
+- **Read the target IDs** (for later, with C): each GCP plate carries a unique number (26, 28, 30
+  read in the images). The same ID in two images links them regardless of drift, and different IDs
+  defuse the identical-plates trap found in pairwise overlap.
+- The shared schema has no trajectory table yet (`images` only has `sequence` and `timestamp_s`):
+  adding one is a change to the `storage/` contract, to agree with B and C.
+
+## Overlap and loop closures on the whole dive (exploration, 2026-10-01)
+
+`scripts/overlap/explore_mermaid_dive.py` (SIFT features cached in `outputs/cache/`):
+
+- **Sequential** (1,244 images, each vs its 5 next, 6,205 pairs): gap 1 → 0 % unknown, |error|
+  median 0.025; gap 5 → 12.6 % unknown, 0.054. Unknowns concentrate on images ~50–500, where
+  overlap with +5 is only 0.3–0.6; texture is not the cause (8,000 keypoints almost everywhere).
+- **Revisits** (passes 0–200 vs 800–1000): 68 % of the 40,000 cross-pass pairs overlap. Sampled
+  400 per band: found 14.8 % of revisits at ≥ 0.6 overlap (|error| 0.005), 4.8 % at 0.4–0.6, 1.5 %
+  at 0.2–0.4; **0 false alarms** on 400 non-overlapping pairs. Precise, but poor recall.
+- **Why**: between passes the diver flies the other way (heading difference > 90° for 63 % of the
+  pairs, recall 11 % vs 33 % under 20°) and much higher (altitude ratio > 2 for 91 %, recall 13 %
+  vs 35 % between ×1.3 and ×2; ratios relative to the approximate reference plane). Only ~30
+  matches survive per pair with the sequential settings.
+- **Costlier verification does not help** (`scripts/overlap/compare_verification_settings.py`,
+  200 revisits ≥ 0.6, 200 non-overlapping pairs): current settings 14.0 % found; no keypoint cap
+  14.5 %; no cap + ratio 0.80 15.5 %; full resolution (cap 20,000, ratio 0.80) 11.0 %. Always 0 false
+  alarms, 6–8× slower. The bottleneck is not the matcher's settings.
+- **What the revisits really are**: between the two passes no pair has a similar footprint
+  (reference IoU ≥ 0.5: 0 %, ≥ 0.3: 2.5 %). Almost every "revisit" is a close-up from the first
+  pass (~1–2 m above the seafloor) contained in a wide view from the second, ~3 m higher, seen
+  through more turbid water (pale, blurred, GCP plates a few pixels wide). Recall by reference IoU:
+  0.30–0.50 → 36 %, 0.15–0.30 → 21 %, < 0.15 → 3 %. Finding a close-up inside a hazy wide view is
+  the hardest case for local features; the 14 % measured mostly that.
+- **Next**: define what a useful loop closure is (similar footprints, e.g. IoU or min(a_in_b,
+  b_in_a), rather than a_in_b alone); measure contrast enhancement (e.g. CLAHE) against turbidity
+  on the IoU 0.15–0.5 band; then choose the image-based candidate pre-selection (VLAD on SIFT,
+  CPU only) and test it on other datasets with real revisits at similar altitude (AQUALOC,
+  UnderLoc / SQUIDLE+ VPR).
