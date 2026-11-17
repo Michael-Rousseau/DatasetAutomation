@@ -279,7 +279,13 @@ feature-based overlap needs to be evaluated.
   | 5 | 12.6 % | 0.054 |
 
   279 unknown pairs: 222 too few inliers, 53 implausible homography, 4 inliers too concentrated.
-  The last 4 are not examined yet: real repeated-target traps, or correct pairs wrongly rejected.
+  The last 4 (322→327, 323→327, 1144→1149, 1147→1152, all at gap 4 or 5) are not the
+  identical-plates trap: the two images do overlap (reference 0.56–0.73) and show the same GCP
+  plate. But every inlier sits on that plate (0.15–0.5 % of the image, spread 0.007–0.008): the
+  seafloor around it did not match. A homography fitted on the plate alone extrapolates badly to
+  the whole image: it would have claimed 0.20, 0.29, 0.64 and 0.37 against 0.56, 0.62, 0.73 and
+  0.65. So `MIN_INLIER_SPREAD` rejects them rightly, for a second reason: too small a support,
+  not only a repeated target.
 - **Limits of the script**:
   - capture order is the order of the file paths (true on Mermaid: it matches the pose order),
     until ingestion fills `images.timestamp_s`;
