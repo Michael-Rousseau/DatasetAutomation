@@ -296,3 +296,32 @@ feature-based overlap needs to be evaluated.
   - the reason of an unknown overlap is only printed: `pairs` has no column for it.
 - **Cost**: extraction 0.15 s per image, matching ~0.08 s per pair, both inside OpenCV. About
   10 min for Mermaid on 8 cores; brute-force matching is the first thing to speed up.
+
+## Deduplication (branch `a/deduplication`)
+
+- **Definition**: an image is a near-duplicate when its **mutual overlap**, `min(a_in_b, b_in_a)`,
+  with an image already kept reaches the threshold. The minimum avoids flagging a close-up
+  contained in a wide view (1.00 one way, 0.10 the other).
+- **Compared with kept images only**, never with the previous image as such: a slow camera makes
+  every image a duplicate of its predecessor while drifting away from where it started.
+- **Unknown or missing pair → the image is kept.** Pairs need not be consecutive: overlaps found
+  later between survey lines or passes (n → n mode) will be used without changing this code.
+- `scripts/overlap/find_duplicates.py` reads `pairs`, does no matching, and writes one CSV line
+  per image (`kept`, or `duplicate` of which image) in `outputs/deduplication/`. A table would be
+  a schema change: to propose once the format has settled.
+- **Result on Mermaid** (overlaps of the calibrated sequential run, 1,244 images):
+
+  | Threshold | near-duplicates | reference mutual overlap of the flagged pairs (min / median) |
+  |---|---|---|
+  | 0.95 | 37 (3.0 %) | 0.89 / 0.95 |
+  | 0.90 | 254 (20.4 %) | 0.79 / 0.92 |
+  | 0.85 | 500 (40.2 %) | not measured |
+  | 0.80 | 683 (54.9 %) | not measured |
+
+  No flagged pair is far from the threshold according to the poses (|error| median 0.008 at
+  0.95). The reference counts 44 consecutive pairs at ≥ 0.95 and 400 at ≥ 0.90, which is not
+  directly comparable: a chain of duplicates is flagged against one kept image, not pair by pair.
+- **Limits**: with k neighbours compared, at most k images in a row can be flagged, since the
+  next one was never compared with the kept image (to fix by comparing on demand). Only temporal
+  neighbours are compared, so duplicates between survey lines are not seen yet. Not validated on
+  a manually annotated sample, as `01_overlap_engine.md` asks.
