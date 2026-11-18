@@ -355,9 +355,15 @@ feature-based overlap needs to be evaluated.
 
   The image-based selection is conservative: an unknown overlap ends the jump. The limit of 5
   neighbours is hardly involved (reached 28 times at 0.80).
-- **Check of the 0.80 subset against the poses**: consecutive kept images overlap by 0.86 in
-  median and 0.74 at the 10th percentile, but 23 of the 858 links are below 0.60 (minimum 0.35):
-  there the estimate was too optimistic. Not examined yet.
+- **Weak links**: at 0.80, 205 of the 858 links between consecutive kept images are below 0.80
+  by our own estimate, and none is unknown. They are not selection errors: there the next image
+  already overlaps the kept one by less than 0.80, and it is kept so as not to open a gap. The
+  sequence itself lacks the overlap (median 0.87 between neighbours), and `summary.txt` reports
+  the count. Against the poses, 23 links are below 0.60 (minimum 0.35): all are consecutive
+  images, and our estimate also puts them low (0.40–0.75), 0.1–0.2 above the reference. They are
+  tilted views (26° from the vertical in median, against 17° for the other links) or sharp
+  turns (875→876: heading change of 144°), where the horizontal-plane reference is least
+  reliable too.
 - **Limits**: Mermaid's neighbours overlap by 0.87 in median, so little can be skipped at 0.80.
   Only neighbours in time are compared, while most of the redundancy is between survey lines
   (28 images per place in median according to the poses). The criterion is 2D: nothing yet says

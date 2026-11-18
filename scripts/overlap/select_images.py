@@ -23,6 +23,7 @@ from matplotlib.figure import Figure
 from dataset_automation.overlap.extraction import (
     CurvePoint,
     SelectionRow,
+    count_weak_links,
     extract_subset,
     extraction_curve,
     selection_rows,
@@ -87,7 +88,7 @@ def main() -> None:
     write_images(run_directory / "images.csv", sequence.paths, rows)
     write_curve(run_directory / "curve.csv", curve)
     plot_curve(curve, arguments.overlap).savefig(run_directory / "curve.png", dpi=110)
-    summary = summarize(sequence, kept, arguments.overlap, overlap_run, run_id)
+    summary = summarize(sequence, rows, arguments.overlap, overlap_run, run_id)
     (run_directory / "summary.txt").write_text(summary)
     print(summary, end="")
     print(f"written to {run_directory}")
@@ -149,22 +150,25 @@ def plot_curve(curve: list[CurvePoint], chosen_overlap: float) -> Figure:
 
 def summarize(
     sequence: StoredSequence,
-    kept: list[int],
+    rows: list[SelectionRow],
     threshold: float,
     overlap_run: RunId,
     run_id: RunId,
 ) -> str:
-    image_count = len(sequence.paths)
-    removed = image_count - len(kept)
-    known = len(sequence.earlier_in_later)
+    image_count = len(rows)
+    kept_count = sum(row.is_kept for row in rows)
+    removed = image_count - kept_count
+    weak = count_weak_links(rows, threshold)
+    compared = len(sequence.earlier_in_later) + sequence.unknown_pair_count
     return (
         f"selection run {run_id}, from the overlaps of run {overlap_run}\n"
         f"overlap kept between consecutive selected images: {threshold:.2f}\n"
         f"images: {image_count}\n"
-        f"kept: {len(kept)}\n"
+        f"kept: {kept_count}\n"
         f"removed: {removed} ({removed / image_count:.1%})\n"
-        f"pairs compared: {known + sequence.unknown_pair_count}, "
-        f"of which unknown: {sequence.unknown_pair_count}\n"
+        f"pairs compared: {compared}, of which unknown: {sequence.unknown_pair_count}\n"
+        f"links between kept images below {threshold:.2f}: {weak.below_threshold}, "
+        f"unknown: {weak.unknown} (the sequence itself lacks the overlap there)\n"
         "only neighbours in time are compared: redundancy between survey lines or passes "
         "is not removed\n"
     )

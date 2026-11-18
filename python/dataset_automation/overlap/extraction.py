@@ -101,3 +101,26 @@ def selection_rows(
         if is_kept:
             reference = position
     return rows
+
+
+@dataclass(frozen=True)
+class WeakLinks:
+    """Consecutive kept images that do not reach the requested overlap.
+
+    They exist because the image after a kept one is always kept: there the sequence itself
+    lacks the overlap, and no selection can restore it.
+    """
+
+    below_threshold: int
+    unknown: int
+
+
+def count_weak_links(rows: list[SelectionRow], threshold: float) -> WeakLinks:
+    links = [row for row in rows if row.is_kept and row.reference is not None]
+    unknown = sum(row.overlap_with_reference is None for row in links)
+    below = sum(
+        row.overlap_with_reference is not None
+        and row.overlap_with_reference < threshold
+        for row in links
+    )
+    return WeakLinks(below_threshold=below, unknown=unknown)

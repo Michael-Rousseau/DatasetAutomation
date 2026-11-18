@@ -3,6 +3,8 @@ import pytest
 from dataset_automation.overlap.extraction import (
     CurvePoint,
     SelectionRow,
+    WeakLinks,
+    count_weak_links,
     extract_subset,
     extraction_curve,
     selection_rows,
@@ -121,3 +123,20 @@ def test_row_of_an_image_kept_without_a_known_overlap_has_none() -> None:
     assert rows[1] == SelectionRow(
         1, is_kept=True, reference=0, overlap_with_reference=None
     )
+
+
+def test_counts_the_kept_links_the_sequence_cannot_satisfy() -> None:
+    # 0 → 1 is too low, 1 → 2 is unknown, 2 → 3 is fine but 3 is the last image.
+    overlaps = {(0, 1): 0.40, (2, 3): 0.90}
+    rows = selection_rows(4, overlaps, extract_subset(4, overlaps, threshold=0.80))
+
+    assert count_weak_links(rows, threshold=0.80) == WeakLinks(
+        below_threshold=1, unknown=1
+    )
+
+
+def test_a_subset_whose_links_all_reach_the_threshold_has_no_weak_link() -> None:
+    overlaps = {(0, 1): 0.95, (0, 2): 0.85}
+    rows = selection_rows(3, overlaps, extract_subset(3, overlaps, threshold=0.80))
+
+    assert count_weak_links(rows, threshold=0.80) == WeakLinks(0, 0)
