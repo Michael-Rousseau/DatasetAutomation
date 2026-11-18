@@ -1,3 +1,4 @@
+import io
 import sqlite3
 from collections import Counter
 from collections.abc import Iterator
@@ -6,8 +7,16 @@ from pathlib import Path
 import pytest
 
 from dataset_automation.features.matching import RatioTestMatcher
+from dataset_automation.overlap.displacement import (
+    DisplacementEstimate,
+    RotationSource,
+)
 from dataset_automation.overlap.pairwise import PairOverlapEstimate, UnknownReason
-from dataset_automation.overlap.recording import record_sequential_overlaps
+from dataset_automation.overlap.recording import (
+    DISPLACEMENT_COLUMNS,
+    record_sequential_overlaps,
+    write_displacements,
+)
 from dataset_automation.overlap.sequential import (
     SequentialOverlap,
     estimate_sequential_overlaps,
@@ -161,3 +170,27 @@ def test_records_overlaps_estimated_from_real_features(
     (row,) = database.execute(PAIR_COLUMNS).fetchall()
     assert report.known == 1
     assert row[4] == pytest.approx(1 - STEP_PX / WIDTH, abs=0.01)
+
+
+def test_displacement_rows_follow_capture_order_and_leave_unknowns_empty() -> None:
+    measured = DisplacementEstimate(
+        200, 150, 4.25, 1.5, RotationSource.ESSENTIAL_MATRIX, None
+    )
+    not_measured = DisplacementEstimate(
+        3, 0, None, None, None, UnknownReason.TOO_FEW_MATCHES
+    )
+    overlaps = [
+        SequentialOverlap(0, 1, known(0.9, 0.9, 0.8), measured),
+        SequentialOverlap(1, 2, known(0.9, 0.9, 0.8), not_measured),
+        SequentialOverlap(0, 2, known(0.9, 0.9, 0.8), None),
+    ]
+    file = io.StringIO()
+
+    passed_through = list(write_displacements(file, [30, 10, 20], overlaps))
+
+    assert passed_through == overlaps
+    assert file.getvalue().splitlines() == [
+        ",".join(DISPLACEMENT_COLUMNS),
+        "30,10,4.2500,1.5000,essential_matrix,150,",
+        "10,20,,,,0,too_few_matches",
+    ]

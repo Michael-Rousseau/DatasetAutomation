@@ -14,6 +14,7 @@ from dataset_automation.features.interface import FeatureExtractor, FeatureMatch
 from dataset_automation.overlap.recording import (
     RecordingReport,
     record_sequential_overlaps,
+    write_displacements,
 )
 from dataset_automation.overlap.sequential import (
     SequenceImage,
@@ -47,9 +48,11 @@ def record_file_sequence(
     matcher: FeatureMatcher,
     neighbour_count: int,
     intrinsics: Intrinsics | None = None,
+    displacements_path: Path | None = None,
 ) -> SequenceReport:
     """`files` must be in capture order. An unreadable file is skipped: its two neighbours
-    become consecutive."""
+    become consecutive. With `intrinsics` and `displacements_path`, the camera displacement
+    of each pair is written to that CSV file."""
     # Filled by the reader as it goes: position i of the sequence the estimator sees is the
     # i-th readable file, which is only known once the files before it have been read.
     read_image_ids: list[int] = []
@@ -60,7 +63,19 @@ def record_file_sequence(
         matcher,
         intrinsics,
     )
-    recording = record_sequential_overlaps(connection, run_id, read_image_ids, overlaps)
+    if displacements_path is None:
+        recording = record_sequential_overlaps(
+            connection, run_id, read_image_ids, overlaps
+        )
+    else:
+        displacements_path.parent.mkdir(parents=True, exist_ok=True)
+        with displacements_path.open("w", newline="") as file:
+            recording = record_sequential_overlaps(
+                connection,
+                run_id,
+                read_image_ids,
+                write_displacements(file, read_image_ids, overlaps),
+            )
     return SequenceReport(recording=recording, unreadable=unreadable)
 
 

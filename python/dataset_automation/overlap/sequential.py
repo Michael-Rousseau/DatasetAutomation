@@ -14,6 +14,10 @@ from dataset_automation.features.interface import (
     Features,
     Matches,
 )
+from dataset_automation.overlap.displacement import (
+    DisplacementEstimate,
+    estimate_displacement,
+)
 from dataset_automation.overlap.pairwise import (
     PairOverlapEstimate,
     estimate_homography_overlap,
@@ -34,11 +38,15 @@ class SequenceImage:
 
 @dataclass(frozen=True)
 class SequentialOverlap:
-    """`index_a` < `index_b` are positions in capture order, matching the `pairs` table."""
+    """`index_a` < `index_b` are positions in capture order, matching the `pairs` table.
+
+    `displacement` is None without a calibration: rays are not defined without it.
+    """
 
     index_a: int
     index_b: int
     estimate: PairOverlapEstimate
+    displacement: DisplacementEstimate | None = None
 
 
 def estimate_sequential_overlaps(
@@ -51,6 +59,7 @@ def estimate_sequential_overlaps(
     """Yield one overlap per pair (i, i + 1 … i + neighbour_count), grouped by second image.
 
     `images` must be in capture order. Unknown overlaps are yielded too, with their reason.
+    With `intrinsics`, the camera displacement of each pair is estimated from the same matches.
     """
     # Checked here, not in the generator: a generator body only runs at the first `next()`.
     if neighbour_count < 1:
@@ -79,5 +88,12 @@ def _sequential_overlaps(
                 image_b.size,
                 intrinsics,
             )
-            yield SequentialOverlap(index_a, index_b, estimate)
+            displacement = (
+                None
+                if intrinsics is None
+                else estimate_displacement(
+                    image_a.features, image_b.features, matches, intrinsics
+                )
+            )
+            yield SequentialOverlap(index_a, index_b, estimate, displacement)
         previous.append((index_b, image_b))

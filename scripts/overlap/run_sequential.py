@@ -6,8 +6,11 @@
 
 Images must be in the `images` table; until person C's ingestion exists, `--register` adds the
 JPEG and PNG files found under the folder. Capture order is the order of the file paths, until
-ingestion fills `images.timestamp_s`. No calibration is applied: overlaps are measured in raw
-pixels.
+ingestion fills `images.timestamp_s`.
+
+Without a calibration, overlaps are measured in raw pixels. There is no calibration file format
+yet: `--mermaid-calibration` applies Mermaid's, and then also writes the camera displacement of
+each pair to `<output>/run_<id>/displacements.csv`.
 """
 
 import argparse
@@ -28,10 +31,12 @@ from dataset_automation.overlap.pipeline import (
     SequenceFile,
     record_file_sequence,
 )
+from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
 from dataset_automation.storage.database import open_database, start_run
 from dataset_automation.storage.images import register_image_files
 
 DATABASE = Path("outputs/shared.sqlite")
+OUTPUT_DIR = Path("outputs/overlap")
 DEFAULT_NEIGHBOURS = 5
 
 
@@ -42,6 +47,12 @@ def main() -> None:
     parser.add_argument("image_root", type=Path)
     parser.add_argument("--neighbours", type=int, default=DEFAULT_NEIGHBOURS)
     parser.add_argument("--database", type=Path, default=DATABASE)
+    parser.add_argument("--output", type=Path, default=OUTPUT_DIR)
+    parser.add_argument(
+        "--mermaid-calibration",
+        action="store_true",
+        help="undistort with Mermaid's camera and measure the camera displacement",
+    )
     parser.add_argument(
         "--register",
         action="store_true",
@@ -81,15 +92,28 @@ def main() -> None:
             "extractor": asdict(extractor),
             "matcher": asdict(matcher),
             "method": "homography",
-            "calibrated": False,
+            "calibration": "mermaid" if arguments.mermaid_calibration else None,
             "min_inliers": MIN_INLIERS,
             "ransac_threshold_px": RANSAC_THRESHOLD_PX,
             "min_inlier_spread": MIN_INLIER_SPREAD,
         },
     )
     print(f"run {run_id}: {len(files)} images, {arguments.neighbours} neighbours each")
+    intrinsics = MERMAID_INTRINSICS if arguments.mermaid_calibration else None
+    displacements_path = (
+        arguments.output / f"run_{run_id}" / "displacements.csv"
+        if arguments.mermaid_calibration
+        else None
+    )
     report = record_file_sequence(
-        connection, run_id, files, extractor, matcher, arguments.neighbours
+        connection,
+        run_id,
+        files,
+        extractor,
+        matcher,
+        arguments.neighbours,
+        intrinsics,
+        displacements_path,
     )
 
     recording = report.recording
@@ -98,6 +122,8 @@ def main() -> None:
     for reason, count in recording.unknown.most_common():
         print(f"  {reason.value}: {count}")
     print(f"{len(report.unreadable)} unreadable images")
+    if displacements_path is not None:
+        print(f"camera displacements: {displacements_path}")
 
 
 if __name__ == "__main__":
