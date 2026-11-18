@@ -369,3 +369,60 @@ feature-based overlap needs to be evaluated.
   (28 images per place in median according to the poses). The criterion is 2D: nothing yet says
   the 3D reconstruction stays as good, which is the question raised by the supervisors
   (2026-11-17): remove stationary images, keep different viewpoints.
+
+## Direction after the progress review (2026-11-17)
+
+Supervisors' feedback, as noted during the meeting:
+
+- Removing 2D duplicates is the easy part; the question is redundancy **for 3D**.
+- Likely target: remove stationary images and produce a **minimal set with the same 3D quality**.
+- The same area seen from another angle (relief) may not be redundant: open.
+- A loop closure needs the 3D relation between the two views, not only a 2D overlap.
+- Wanted figures: images removed at ~80 % overlap, and compute time against redundancy.
+- Targets: to be discussed again.
+
+Open questions for them: how "same 3D quality" is measured, with which software, whether they
+can reconstruct a subset we provide, and which compute time is meant.
+
+## Findings from one-off explorations (2026-11-17 and 18)
+
+Computed with throwaway scripts, not in the repository. Numbers are for Mermaid only.
+
+- **Revisits, recall per image.** 50 images of pass 0–199 (one in four) against all 200 images of
+  pass 800–999, sequential settings, 10,000 pairs. Per pair the recall is the known one (14.2 %
+  at reference overlap ≥ 0.6, 7.5 % of all overlapping pairs), but **33 of the 50 images (66 %)
+  get at least one link** to the other pass, 26 get at least three, and none gets a false link
+  (0 false alarms on 3,227 non-overlapping pairs). An image has 146 overlapping partners in
+  median, so missing nine in ten still leaves several. Found links are accurate (|error| median
+  0.012, 49 inliers in median). The 17 images without a link form zones (0–24, 68–80, 96–104,
+  160–168) and depend on how similar the best partner is: best reference IoU ≥ 0.30 → 16 of 19
+  images linked, 0.15–0.30 → 14 of 20, < 0.15 → 3 of 11. Linking two passes is feasible with
+  the current matcher; the open problem is finding the candidates without the poses.
+- **"Any overlap" is not a revisit.** From the poses, 74 % of all image pairs overlap (569,077 of
+  773,146), every image overlaps one taken more than 30 images away, and a place is seen by 28
+  images in median (up to 583). Footprints are several metres wide while survey lines are less
+  than a metre apart. A useful revisit needs a stricter definition (similar footprints).
+- **Pose-based indicator of what a subset keeps for 3D (proof of concept).** For every 10 cm
+  cell of the seafloor plane: how many kept images see it, and how wide the fan of their viewing
+  directions is. A cell counts as reconstructible with at least 3 views spread over at least
+  10° (both thresholds are a first guess).
+
+  | Subset | images | reconstructible area kept | views (median) | fan (median) |
+  |---|---|---|---|---|
+  | all images | 1,244 | 100 % | 28 | 58° |
+  | selection 0.90 | 1,177 | 98.4 % | 25 | 58° |
+  | selection 0.80 | 859 | 94.2 % | 15 | 57° |
+  | selection 0.70 | 562 | 88.9 % | 9 | 52° |
+  | selection 0.50 | 316 | 80.0 % | 6 | 46° |
+  | 316 random images | 316 | 78.6 % | 6 | 45° |
+  | 1 image in 10 | 125 | 67.3 % | 3 | 36° |
+  | 1 image in 50 | 25 | 35.7 % | 1 | 0° |
+
+  The indicator behaves as expected: it decreases steadily and collapses when too much is
+  removed, and it separates coverage from viewpoint diversity (images 1040–1243 cover 77 % of
+  the area with a 30° fan, against 58° for the whole dive). It also shows that **the sequential
+  2D selection barely beats a random subset of the same size** (80.0 % against 78.6 %): the
+  argument for measuring camera displacement and for using links between survey lines.
+  Limits: flat seafloor, so areas and angles are wrong on the relief; it says what the geometry
+  allows, not whether the images actually connect; it has not been compared with a real
+  reconstruction.
