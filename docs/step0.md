@@ -114,6 +114,7 @@ uv run pyright                                      # type check
 uv run python scripts/reference/check_mermaid_poses.py   # step 1: pose convention check + plots in outputs/
 uv run python scripts/reference/check_footprints.py      # step 2b: footprint stats + plot in outputs/
 uv run python scripts/overlap/run_sequential.py data/mermaid/images --register   # sequential overlaps into outputs/shared.sqlite
+uv run python scripts/overlap/select_images.py --overlap 0.80   # images to keep + curve, from the stored overlaps
 ```
 
 ## Scope extension — feature layer (branch `a/sift-features`)
@@ -325,3 +326,120 @@ feature-based overlap needs to be evaluated.
   next one was never compared with the kept image (to fix by comparing on demand). Only temporal
   neighbours are compared, so duplicates between survey lines are not seen yet. Not validated on
   a manually annotated sample, as `01_overlap_engine.md` asks.
+
+## Selection of a minimal subset (branch `a/extraction`)
+
+- **Rule** (`overlap/extraction.py`): keep an image, jump to the last following image that still
+  overlaps it by the threshold, keep that one, repeat. The jump stops at the first pair that is
+  below the threshold, unknown or never compared. The image after a kept one is always kept, so
+  the subset never has a gap the sequence did not have; first and last images are always kept.
+- **Measure**: the share of the kept image seen by the next one (`earlier_in_later`), as in
+  `01_overlap_engine.md`. The mutual overlap gives nearly the same counts (357 instead of 385
+  removed at 0.80).
+- `scripts/overlap/select_images.py` reads `pairs`, does no matching (0.6 s on Mermaid) and writes
+  `kept_images.txt`, `images.csv`, `curve.csv`, `curve.png` and `summary.txt` in
+  `outputs/selection/run_<id>/`.
+- **Result on Mermaid** (calibrated sequential run, 5 neighbours, 1,244 images). The last column
+  applies the same rule to the pose-based reference overlap, with no limit on the jump.
+
+  | Overlap kept | removed, from the images | removed, from the poses |
+  |---|---|---|
+  | 0.95 | 8 (0.6 %) | 9 (0.7 %) |
+  | 0.90 | 67 (5.4 %) | 126 (10.1 %) |
+  | 0.85 | 224 (18.0 %) | 339 (27.3 %) |
+  | 0.80 | 385 (30.9 %) | 542 (43.6 %) |
+  | 0.75 | 544 (43.7 %) | 713 (57.3 %) |
+  | 0.70 | 682 (54.8 %) | 816 (65.6 %) |
+  | 0.60 | 847 (68.1 %) | 969 (77.9 %) |
+  | 0.50 | 928 (74.6 %) | 1,050 (84.4 %) |
+
+  The image-based selection is conservative: an unknown overlap ends the jump. The limit of 5
+  neighbours is hardly involved (reached 28 times at 0.80).
+- **Weak links**: at 0.80, 205 of the 858 links between consecutive kept images are below 0.80
+  by our own estimate, and none is unknown. They are not selection errors: there the next image
+  already overlaps the kept one by less than 0.80, and it is kept so as not to open a gap. The
+  sequence itself lacks the overlap (median 0.87 between neighbours), and `summary.txt` reports
+  the count. Against the poses, 23 links are below 0.60 (minimum 0.35): all are consecutive
+  images, and our estimate also puts them low (0.40–0.75), 0.1–0.2 above the reference. They are
+  tilted views (26° from the vertical in median, against 17° for the other links) or sharp
+  turns (875→876: heading change of 144°), where the horizontal-plane reference is least
+  reliable too.
+- **Limits**: Mermaid's neighbours overlap by 0.87 in median, so little can be skipped at 0.80.
+  Only neighbours in time are compared, while most of the redundancy is between survey lines
+  (28 images per place in median according to the poses). The criterion is 2D: nothing yet says
+  the 3D reconstruction stays as good, which is the question raised by the supervisors
+  (2026-11-17): remove stationary images, keep different viewpoints.
+
+## Direction after the progress review (2026-11-17)
+
+Supervisors' feedback, as noted during the meeting:
+
+- Removing 2D duplicates is the easy part; the question is redundancy **for 3D**.
+- Likely target: remove stationary images and produce a **minimal set with the same 3D quality**.
+- The same area seen from another angle (relief) may not be redundant: open.
+- A loop closure needs the 3D relation between the two views, not only a 2D overlap.
+- Wanted figures: images removed at ~80 % overlap, and compute time against redundancy.
+- Targets: to be discussed again.
+
+Open questions for them: how "same 3D quality" is measured, with which software, whether they
+can reconstruct a subset we provide, and which compute time is meant.
+
+## Findings from one-off explorations (2026-11-17 and 18)
+
+Computed with throwaway scripts, not in the repository. Numbers are for Mermaid only.
+
+- **Revisits, recall per image.** 50 images of pass 0–199 (one in four) against all 200 images of
+  pass 800–999, sequential settings, 10,000 pairs. Per pair the recall is the known one (14.2 %
+  at reference overlap ≥ 0.6, 7.5 % of all overlapping pairs), but **33 of the 50 images (66 %)
+  get at least one link** to the other pass, 26 get at least three, and none gets a false link
+  (0 false alarms on 3,227 non-overlapping pairs). An image has 146 overlapping partners in
+  median, so missing nine in ten still leaves several. Found links are accurate (|error| median
+  0.012, 49 inliers in median). The 17 images without a link form zones (0–24, 68–80, 96–104,
+  160–168) and depend on how similar the best partner is: best reference IoU ≥ 0.30 → 16 of 19
+  images linked, 0.15–0.30 → 14 of 20, < 0.15 → 3 of 11. Linking two passes is feasible with
+  the current matcher; the open problem is finding the candidates without the poses.
+- **"Any overlap" is not a revisit.** From the poses, 74 % of all image pairs overlap (569,077 of
+  773,146), every image overlaps one taken more than 30 images away, and a place is seen by 28
+  images in median (up to 583). Footprints are several metres wide while survey lines are less
+  than a metre apart. A useful revisit needs a stricter definition (similar footprints).
+- **Pose-based indicator of what a subset keeps for 3D (proof of concept).** For every 10 cm
+  cell of the seafloor plane: how many kept images see it, and how wide the fan of their viewing
+  directions is. A cell counts as reconstructible with at least 3 views spread over at least
+  10° (both thresholds are a first guess).
+
+  | Subset | images | reconstructible area kept | views (median) | fan (median) |
+  |---|---|---|---|---|
+  | all images | 1,244 | 100 % | 28 | 58° |
+  | selection 0.90 | 1,177 | 98.4 % | 25 | 58° |
+  | selection 0.80 | 859 | 94.2 % | 15 | 57° |
+  | selection 0.70 | 562 | 88.9 % | 9 | 52° |
+  | selection 0.50 | 316 | 80.0 % | 6 | 46° |
+  | 316 random images | 316 | 78.6 % | 6 | 45° |
+  | 1 image in 10 | 125 | 67.3 % | 3 | 36° |
+  | 1 image in 50 | 25 | 35.7 % | 1 | 0° |
+
+  The indicator behaves as expected: it decreases steadily and collapses when too much is
+  removed, and it separates coverage from viewpoint diversity (images 1040–1243 cover 77 % of
+  the area with a 30° fan, against 58° for the whole dive). It also shows that **the sequential
+  2D selection barely beats a random subset of the same size** (80.0 % against 78.6 %): the
+  argument for measuring camera displacement and for using links between survey lines.
+  Limits: flat seafloor, so areas and angles are wrong on the relief; it says what the geometry
+  allows, not whether the images actually connect; it has not been compared with a real
+  reconstruction.
+- **The indicator is now in the repository**: `reference/observability.py`, used by
+  `scripts/overlap/select_images.py --mermaid-poses data/mermaid/107177.xml`, which appends the
+  reconstructible area kept by the selection to the summary (same numbers as the table above,
+  2 s). It needs the poses, so it is an evaluation on Mermaid, not part of the generic output.
+- **Camera displacement between consecutive images, as a triangulation angle** (exploration for
+  the next step, 1,243 pairs, 153 s). Essential matrix from the matches (calibrated, MAGSAC,
+  3 px), then for each inlier the angle between its ray in A and its ray in B rotated back to A;
+  the pair's value is the median. Compared with the same angle computed with the rotation from
+  the poses: estimate available for 1,235 pairs (99.4 %), |error| median 0.17° (p90 0.72°,
+  p99 2.8°), correlation 0.97; rotation error 0.29° in median. The angle is 3.6° in median
+  between neighbours (p5 1.3°, p95 8.7°) for a 0.24 m step. Mermaid has almost no truly
+  stationary images: 28 pairs under 1° (2.3 %), 176 under 2° (14 %), in runs mostly between
+  images 511 and 937, where the camera is high and the step is small against the distance.
+  Overlap and angle are related but not the same (correlation −0.58): of the 176 pairs under 2°,
+  81 have a mutual overlap below 0.90, and of the 340 pairs at overlap ≥ 0.90, 95 are under 2°
+  and 19 are at 5° or more. Deciding "under 2°" from the images finds 153 of the 176, with 74
+  false alarms: the threshold needs a margin.
