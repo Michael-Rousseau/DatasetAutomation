@@ -113,6 +113,7 @@ uv run python scripts/fetch_mermaid.py              # Mermaid poses and reports 
 uv run pyright                                      # type check
 uv run python scripts/reference/check_mermaid_poses.py   # step 1: pose convention check + plots in outputs/
 uv run python scripts/reference/check_footprints.py      # step 2b: footprint stats + plot in outputs/
+uv run python scripts/overlap/run_sequential.py data/mermaid/images --register   # sequential overlaps into outputs/shared.sqlite
 ```
 
 ## Scope extension — feature layer (branch `a/sift-features`)
@@ -252,3 +253,46 @@ feature-based overlap needs to be evaluated.
   on the IoU 0.15–0.5 band; then choose the image-based candidate pre-selection (VLAD on SIFT,
   CPU only) and test it on other datasets with real revisits at similar altitude (AQUALOC,
   UnderLoc / SQUIDLE+ VPR).
+
+## Sequential mode into `pairs` (branch `a/sequential-overlap`)
+
+- **`overlap/sequential.py`**: each image against its next `neighbour_count` images, over a sliding
+  window. Only the window is in memory and pairs are yielded one at a time, so the input can be
+  read from disk as it goes. Pairs come out grouped by their second image.
+- **`overlap/recording.py`**: one `pairs` row per pair. An unknown overlap is a row with NULL
+  overlaps and its inlier count: "compared, could not tell" differs from "never compared".
+  Database ids are not assumed to follow capture order: when they do not, the directional values
+  are swapped with the ids (the table requires `image_a_id < image_b_id`).
+- **`overlap/pipeline.py`** and `scripts/overlap/run_sequential.py`: image files → features →
+  overlaps → `pairs`. An unreadable file is skipped and its two neighbours become consecutive.
+- **`storage/images.py`**: image file registration moved out of `scripts/cleaning/make_masks.py`
+  so that every module can use it until ingestion exists.
+- **Check on Mermaid** (calibrated, 1,244 images, 5 neighbours, 6,205 pairs): same numbers as the
+  exploration script, which this pipeline replaces for the sequential mode.
+
+  | Gap | unknown | \|error\| median |
+  |---|---|---|
+  | 1 | 0.0 % | 0.025 |
+  | 2 | 0.3 % | 0.039 |
+  | 3 | 2.3 % | 0.047 |
+  | 4 | 7.3 % | 0.052 |
+  | 5 | 12.6 % | 0.054 |
+
+  279 unknown pairs: 222 too few inliers, 53 implausible homography, 4 inliers too concentrated.
+  The last 4 (322→327, 323→327, 1144→1149, 1147→1152, all at gap 4 or 5) are not the
+  identical-plates trap: the two images do overlap (reference 0.56–0.73) and show the same GCP
+  plate. But every inlier sits on that plate (0.15–0.5 % of the image, spread 0.007–0.008): the
+  seafloor around it did not match. A homography fitted on the plate alone extrapolates badly to
+  the whole image: it would have claimed 0.20, 0.29, 0.64 and 0.37 against 0.56, 0.62, 0.73 and
+  0.65. So `MIN_INLIER_SPREAD` rejects them rightly, for a second reason: too small a support,
+  not only a repeated target.
+- **Limits of the script**:
+  - capture order is the order of the file paths (true on Mermaid: it matches the pose order),
+    until ingestion fills `images.timestamp_s`;
+  - no calibration: there is no calibration file format yet, so the script measures raw pixels
+    (the library function accepts intrinsics);
+  - features are extracted again at every run (the `features` table is not filled);
+  - an interrupted run keeps its pairs but cannot be resumed;
+  - the reason of an unknown overlap is only printed: `pairs` has no column for it.
+- **Cost**: extraction 0.15 s per image, matching ~0.08 s per pair, both inside OpenCV. About
+  10 min for Mermaid on 8 cores; brute-force matching is the first thing to speed up.

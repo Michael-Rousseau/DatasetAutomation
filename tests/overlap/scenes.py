@@ -11,6 +11,8 @@ from tests.features.textures import textured_image
 WIDTH, HEIGHT = 640, 480
 # Room around the views so that warped content never runs out of scene.
 MARGIN = 400
+# Camera motion between consecutive images of `sliding_views`.
+STEP_PX = 80
 # Mermaid's lens, scaled down to 640 × 480 (focal and offsets / 6, same distortion coefficients).
 SMALL_GOPRO = Intrinsics(
     width_px=WIDTH,
@@ -43,6 +45,17 @@ def view_pair(a_to_b: np.ndarray, world: np.ndarray) -> tuple[np.ndarray, np.nda
         world, b_to_world, (WIDTH, HEIGHT), flags=cv2.INTER_CUBIC | cv2.WARP_INVERSE_MAP
     )
     return image_a, image_b
+
+
+def sliding_views(image_count: int, world: np.ndarray) -> list[np.ndarray]:
+    """A camera moving right by STEP_PX per image over a flat scene."""
+    views = []
+    for position in range(image_count):
+        shift = np.array(
+            [[1.0, 0.0, -STEP_PX * position], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
+        )
+        views.append(view_pair(shift, world)[1])
+    return views
 
 
 def distorted_view(world: np.ndarray, shift_x: float) -> np.ndarray:

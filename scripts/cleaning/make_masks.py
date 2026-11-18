@@ -12,35 +12,15 @@ JPEG and PNG files found under the folder. The merged masks for COLMAP land in
 """
 
 import argparse
-import sqlite3
 from pathlib import Path
 
-from dataset_automation.cleaning.pipeline import (
-    IMAGE_SUFFIXES,
-    image_files,
-    images_under,
-    mask_images,
-)
+from dataset_automation.cleaning.pipeline import images_under, mask_images
 from dataset_automation.cleaning.segmenter import METHODS, load_segmenter
-from dataset_automation.storage.database import open_database, start_run
+from dataset_automation.storage.database import open_database
+from dataset_automation.storage.images import register_image_files
 
 DATABASE = Path("outputs/shared.sqlite")
 OUTPUT_DIR = Path("outputs/cleaning/masks")
-
-
-def register_images(connection: sqlite3.Connection, image_root: Path) -> int:
-    """Stopgap until ingestion exists: add the image files not already in `images`."""
-    paths = [path.resolve() for path in image_files(image_root)]
-    run_id = start_run(
-        connection, "cleaning-register", {"image_root": str(image_root.resolve())}
-    )
-    before = connection.total_changes
-    connection.executemany(
-        "INSERT OR IGNORE INTO images (path, source, run_id) VALUES (?, ?, ?)",
-        [(str(path), IMAGE_SUFFIXES[path.suffix.lower()], run_id) for path in paths],
-    )
-    connection.commit()
-    return connection.total_changes - before
 
 
 def main() -> None:
@@ -63,7 +43,10 @@ def main() -> None:
     arguments.database.parent.mkdir(parents=True, exist_ok=True)
     connection = open_database(arguments.database)
     if arguments.register:
-        print(f"registered {register_images(connection, arguments.image_root)} images")
+        added = register_image_files(
+            connection, arguments.image_root, "cleaning-register"
+        )
+        print(f"registered {added} images")
 
     images = images_under(connection, arguments.image_root)
     if not images:
