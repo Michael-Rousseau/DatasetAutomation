@@ -1,9 +1,12 @@
+import csv
 import sqlite3
 from pathlib import Path
 
 import cv2
+import numpy as np
 import pytest
 
+from dataset_automation.camera.intrinsics import Intrinsics
 from dataset_automation.features.matching import RatioTestMatcher
 from dataset_automation.features.sift import SiftExtractor
 from dataset_automation.overlap.pipeline import SequenceFile, record_file_sequence
@@ -11,6 +14,9 @@ from dataset_automation.storage.database import RunId, open_database, start_run
 from tests.overlap.scenes import STEP_PX, WIDTH, scene, sliding_views
 
 EXTRACTOR = SiftExtractor(scale=1.0)
+FOCAL_PX = 500.0
+# No distortion: the synthetic views are exact translations of a flat scene.
+PINHOLE = Intrinsics(WIDTH, 480, FOCAL_PX, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
 
 
 @pytest.fixture
@@ -87,3 +93,37 @@ def test_skips_an_unreadable_file_and_pairs_its_neighbours(
         (first.image_id, second.image_id)
     ]
     assert report.unreadable == [corrupted_path]
+
+
+def test_writes_the_camera_displacement_of_each_pair_when_calibrated(
+    database: sqlite3.Connection, run_id: RunId, tmp_path: Path
+) -> None:
+    files = sliding_files(database, run_id, tmp_path, 3)
+    displacements_path = tmp_path / "run" / "displacements.csv"
+
+    record_file_sequence(
+        database,
+        run_id,
+        files,
+        EXTRACTOR,
+        RatioTestMatcher(),
+        1,
+        PINHOLE,
+        displacements_path,
+    )
+
+    with displacements_path.open() as file:
+        rows = list(csv.DictReader(file))
+    assert [(int(row["image_a_id"]), int(row["image_b_id"])) for row in rows] == [
+        (files[0].image_id, files[1].image_id),
+        (files[1].image_id, files[2].image_id),
+    ]
+    # A step of STEP_PX seen with a focal of FOCAL_PX, over a flat scene.
+    expected_deg = np.degrees(np.arctan(STEP_PX / FOCAL_PX))
+    for row in rows:
+        assert float(row["triangulation_angle_deg"]) == pytest.approx(
+            expected_deg, abs=1.0
+        )
+        assert row["rotation_source"] == "plane"
+        assert row["unknown_reason"] == ""
+    assert database.execute("SELECT COUNT(*) FROM pairs").fetchone()[0] == 2

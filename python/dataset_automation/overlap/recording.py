@@ -1,13 +1,26 @@
-"""Write sequential overlaps to the shared `pairs` table."""
+"""Write sequential overlaps to the shared `pairs` table, and displacements to a CSV file."""
 
+import csv
 import sqlite3
 from collections import Counter
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import TextIO
 
 from dataset_automation.overlap.pairwise import UnknownReason
 from dataset_automation.overlap.sequential import SequentialOverlap
 from dataset_automation.storage.database import RunId
+
+DISPLACEMENT_COLUMNS = (
+    "image_a_id",
+    "image_b_id",
+    "triangulation_angle_deg",
+    "rotation_deg",
+    "rotation_source",
+    "inlier_count",
+    "unknown_reason",
+)
 
 
 @dataclass(frozen=True)
@@ -68,3 +81,41 @@ def _pair_row(
         estimate.iou,
         run_id,
     )
+
+
+def write_displacements(
+    file: TextIO, image_ids: Sequence[int], overlaps: Iterable[SequentialOverlap]
+) -> Iterator[SequentialOverlap]:
+    """Pass `overlaps` through, writing the displacement of each pair to `file` as CSV.
+
+    The `pairs` table has no column for the displacement, and adding one changes the shared
+    schema: it lives in a file next to the run until the measure has settled. Rows keep the
+    capture order (image A is the earlier one), unlike `pairs`, which orders by database id.
+    Each row is flushed, so an interrupted run keeps the pairs already measured.
+    """
+    writer = csv.writer(file)
+    writer.writerow(DISPLACEMENT_COLUMNS)
+    for overlap in overlaps:
+        displacement = overlap.displacement
+        if displacement is not None:
+            writer.writerow(
+                [
+                    image_ids[overlap.index_a],
+                    image_ids[overlap.index_b],
+                    _text(displacement.triangulation_angle_deg),
+                    _text(displacement.rotation_deg),
+                    _value(displacement.rotation_source),
+                    displacement.inlier_count,
+                    _value(displacement.unknown_reason),
+                ]
+            )
+            file.flush()
+        yield overlap
+
+
+def _text(number: float | None) -> str:
+    return "" if number is None else f"{number:.4f}"
+
+
+def _value(member: Enum | None) -> str:
+    return "" if member is None else str(member.value)
