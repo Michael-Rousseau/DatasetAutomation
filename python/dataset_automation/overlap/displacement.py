@@ -20,9 +20,8 @@ from dataset_automation.camera.undistortion import undistort_to_normalized
 from dataset_automation.features.interface import Features, Matches
 from dataset_automation.overlap.pairwise import MIN_INLIERS, UnknownReason
 
-# 3 px with MAGSAC, on the 1,243 consecutive Mermaid pairs against the reference poses: angle
-# off by 0.17 degrees in median (p90 0.72), rotation by 0.29 degrees. Not measured again on
-# Mermaid since the estimator below replaced MAGSAC.
+# Measured on the 1,243 consecutive Mermaid pairs against the reference poses: the angle is off
+# by 0.14 degrees in median (p90 0.76, p99 3.0) for a true angle of 3.6 degrees in median.
 RANSAC_THRESHOLD_PX = 3.0
 # MAGSAC returns the essential matrix of its best sample without refining it on the inliers:
 # on synthetic points with a third of wrong matches the rotation is off by 0.28 degrees
@@ -33,8 +32,9 @@ RANSAC_CONFIDENCE = 0.999
 # The five-point algorithm needs five matches; fewer gives no model at all.
 MIN_MATCHES = 5
 # Share of the matches fitting an essential matrix that a single homography also explains,
-# above which the scene is treated as a plane (or the camera as only turning). First guess,
-# not measured yet: relief on Mermaid leaves a homography about a third of the matches.
+# above which the scene is treated as a plane (or the camera as only turning). First guess:
+# on Mermaid it selects 10 consecutive pairs of 1,243, measured as well as the others
+# (0.16 degrees in median). To settle on a dataset with flat seafloor.
 PLANE_INLIER_SHARE = 0.8
 
 

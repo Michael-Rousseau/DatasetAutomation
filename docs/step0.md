@@ -443,3 +443,25 @@ Computed with throwaway scripts, not in the repository. Numbers are for Mermaid 
   81 have a mutual overlap below 0.90, and of the 340 pairs at overlap ≥ 0.90, 95 are under 2°
   and 19 are at 5° or more. Deciding "under 2°" from the images finds 153 of the 176, with 74
   false alarms: the threshold needs a margin.
+
+## Camera displacement (branch `a/camera-displacement`)
+
+- **`overlap/displacement.py`**: `estimate_displacement` returns the triangulation angle between
+  two images (median over the inliers, rotation removed), how much the camera turned, and which
+  model gave the rotation. It needs the calibration.
+- **Flat scenes and pure rotation** (found with synthetic scenes, hidden by Mermaid's relief):
+  coplanar points fit several essential matrices, and the estimator answered 0.7° for a true
+  5.2° on a flat seafloor; a camera only turning gave no answer. When one homography explains
+  at least 80 % of the matches that fit the essential matrix, the homography is decomposed
+  instead and the plane facing the camera is kept. That choice is an assumption (right for a
+  seafloor seen from above); `rotation_source` records when it was used.
+- **MAGSAC does not refine the essential matrix**: with wrong matches the rotation was off by
+  0.28° on exact synthetic points. `USAC_ACCURATE` gives 0.00° (0.07° with 0.5 px of noise).
+- **On Mermaid** (1,243 consecutive pairs, 162 s): 1,229 known (98.9 %), |error| on the angle
+  0.14° in median (p90 0.76°, p99 3.0°), against 0.17° with MAGSAC; the plane model is used for
+  10 pairs, measured as well as the others (0.16°).
+- **Known gross errors**: about 1 % of the pairs get an angle near 1° where the truth is near 5°
+  (e.g. 316, 78, 266): the estimated rotation absorbs the displacement. Their homography share
+  ranges from 0.08 to 0.64, so they are not simply flat scenes; not explained yet. They would be
+  taken for stationary images: deciding "under 2°" finds 145 of the 171 true ones with 91 false
+  alarms.
