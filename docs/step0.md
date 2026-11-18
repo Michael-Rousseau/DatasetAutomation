@@ -489,3 +489,15 @@ Computed with throwaway scripts, not in the repository. Numbers are for Mermaid 
   the camera are still unmeasured assumptions, to settle on a dataset with flat seafloor. The
   truth uses the rotation of the poses on our own matches: it checks the rotation, not the
   matches.
+- **Where the 0.80 selection loses reconstructible area** (5.8 %, 23 of 397 m²): on the rim.
+  99 % of the lost cells are within 1 m of the edge of the reconstructible area and 83 % within
+  0.5 m; more than 1 m inside, 0.07 % is lost (0.22 of 316 m²). The lost cells were seen by 5
+  images in median with all images, against 61 for the whole reconstructible area: they were
+  just above the threshold of 3 views over 10°. 74 % are lost for having fewer than 3 views
+  left, 26 % for a fan under 10°, and 5 % are no longer seen at all. The rim comes from wide,
+  tilted footprints, the least reliable part of the flat-seafloor reference.
+- **Displacement over the whole dive** (`outputs/overlap/run_21/displacements.csv`, 6,205 pairs,
+  18 min 28 s with matching): the angle grows by about 3.5° per image of gap (3.6°, 7.0°, 10.0°,
+  13.0°, 15.4° in median for gaps 1 to 5), so three images of gap are needed to reach 10°. It is
+  unknown for 83 pairs, against 279 for the overlap (4.4 % against 12.6 % at gap 5): it does not
+  assume a flat scene.
