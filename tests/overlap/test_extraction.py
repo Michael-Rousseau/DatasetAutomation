@@ -1,6 +1,10 @@
 import pytest
 
-from dataset_automation.overlap.extraction import extract_subset
+from dataset_automation.overlap.extraction import (
+    CurvePoint,
+    extract_subset,
+    extraction_curve,
+)
 
 
 def test_skips_the_images_that_still_overlap_the_kept_one() -> None:
@@ -67,3 +71,31 @@ def test_sequences_too_short_to_extract_from(image_count: int, kept: list[int]) 
 def test_rejects_a_threshold_outside_zero_one(threshold: float) -> None:
     with pytest.raises(ValueError):
         extract_subset(2, {(0, 1): 0.9}, threshold)
+
+
+def test_curve_counts_the_images_kept_at_each_threshold() -> None:
+    overlaps = {
+        (0, 1): 0.90,
+        (0, 2): 0.75,
+        (0, 3): 0.55,
+        (1, 2): 0.90,
+        (1, 3): 0.75,
+        (2, 3): 0.90,
+    }
+
+    curve = extraction_curve(4, overlaps, [0.80, 0.70, 0.50])
+
+    assert curve == [
+        CurvePoint(threshold=0.80, image_count=4, kept_count=4),
+        CurvePoint(threshold=0.70, image_count=4, kept_count=3),
+        CurvePoint(threshold=0.50, image_count=4, kept_count=2),
+    ]
+    assert [point.removed_count for point in curve] == [0, 1, 2]
+    assert curve[2].removed_share == 0.5
+
+
+def test_curve_of_an_empty_sequence_removes_nothing() -> None:
+    (point,) = extraction_curve(0, {}, [0.80])
+
+    assert point.kept_count == 0
+    assert point.removed_share == 0.0

@@ -3,7 +3,23 @@
 Non-destructive: the result is the list of images to keep, nothing is removed.
 """
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
+
+
+@dataclass(frozen=True)
+class CurvePoint:
+    threshold: float
+    image_count: int
+    kept_count: int
+
+    @property
+    def removed_count(self) -> int:
+        return self.image_count - self.kept_count
+
+    @property
+    def removed_share(self) -> float:
+        return self.removed_count / self.image_count if self.image_count else 0.0
 
 
 def extract_subset(
@@ -39,3 +55,22 @@ def extract_subset(
             furthest = candidate
         kept.append(furthest)
     return kept
+
+
+def extraction_curve(
+    image_count: int,
+    overlaps: Mapping[tuple[int, int], float],
+    thresholds: Iterable[float],
+) -> list[CurvePoint]:
+    """How many images each threshold keeps, in the order the thresholds are given.
+
+    No matching is involved: every point reuses the same overlaps.
+    """
+    return [
+        CurvePoint(
+            threshold,
+            image_count,
+            len(extract_subset(image_count, overlaps, threshold)),
+        )
+        for threshold in thresholds
+    ]
