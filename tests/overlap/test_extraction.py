@@ -2,8 +2,10 @@ import pytest
 
 from dataset_automation.overlap.extraction import (
     CurvePoint,
+    SelectionRow,
     extract_subset,
     extraction_curve,
+    selection_rows,
 )
 
 
@@ -99,3 +101,23 @@ def test_curve_of_an_empty_sequence_removes_nothing() -> None:
 
     assert point.kept_count == 0
     assert point.removed_share == 0.0
+
+
+def test_rows_compare_each_image_with_the_kept_image_before_it() -> None:
+    overlaps = {(0, 1): 0.95, (0, 2): 0.85, (0, 3): 0.70, (2, 3): 0.90}
+    kept = extract_subset(4, overlaps, threshold=0.80)
+
+    assert selection_rows(4, overlaps, kept) == [
+        SelectionRow(0, is_kept=True, reference=None, overlap_with_reference=None),
+        SelectionRow(1, is_kept=False, reference=0, overlap_with_reference=0.95),
+        SelectionRow(2, is_kept=True, reference=0, overlap_with_reference=0.85),
+        SelectionRow(3, is_kept=True, reference=2, overlap_with_reference=0.90),
+    ]
+
+
+def test_row_of_an_image_kept_without_a_known_overlap_has_none() -> None:
+    rows = selection_rows(2, {}, extract_subset(2, {}, threshold=0.80))
+
+    assert rows[1] == SelectionRow(
+        1, is_kept=True, reference=0, overlap_with_reference=None
+    )

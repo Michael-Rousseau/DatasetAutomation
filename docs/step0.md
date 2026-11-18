@@ -114,6 +114,7 @@ uv run pyright                                      # type check
 uv run python scripts/reference/check_mermaid_poses.py   # step 1: pose convention check + plots in outputs/
 uv run python scripts/reference/check_footprints.py      # step 2b: footprint stats + plot in outputs/
 uv run python scripts/overlap/run_sequential.py data/mermaid/images --register   # sequential overlaps into outputs/shared.sqlite
+uv run python scripts/overlap/select_images.py --overlap 0.80   # images to keep + curve, from the stored overlaps
 ```
 
 ## Scope extension — feature layer (branch `a/sift-features`)
@@ -325,3 +326,40 @@ feature-based overlap needs to be evaluated.
   next one was never compared with the kept image (to fix by comparing on demand). Only temporal
   neighbours are compared, so duplicates between survey lines are not seen yet. Not validated on
   a manually annotated sample, as `01_overlap_engine.md` asks.
+
+## Selection of a minimal subset (branch `a/extraction`)
+
+- **Rule** (`overlap/extraction.py`): keep an image, jump to the last following image that still
+  overlaps it by the threshold, keep that one, repeat. The jump stops at the first pair that is
+  below the threshold, unknown or never compared. The image after a kept one is always kept, so
+  the subset never has a gap the sequence did not have; first and last images are always kept.
+- **Measure**: the share of the kept image seen by the next one (`earlier_in_later`), as in
+  `01_overlap_engine.md`. The mutual overlap gives nearly the same counts (357 instead of 385
+  removed at 0.80).
+- `scripts/overlap/select_images.py` reads `pairs`, does no matching (0.6 s on Mermaid) and writes
+  `kept_images.txt`, `images.csv`, `curve.csv`, `curve.png` and `summary.txt` in
+  `outputs/selection/run_<id>/`.
+- **Result on Mermaid** (calibrated sequential run, 5 neighbours, 1,244 images). The last column
+  applies the same rule to the pose-based reference overlap, with no limit on the jump.
+
+  | Overlap kept | removed, from the images | removed, from the poses |
+  |---|---|---|
+  | 0.95 | 8 (0.6 %) | 9 (0.7 %) |
+  | 0.90 | 67 (5.4 %) | 126 (10.1 %) |
+  | 0.85 | 224 (18.0 %) | 339 (27.3 %) |
+  | 0.80 | 385 (30.9 %) | 542 (43.6 %) |
+  | 0.75 | 544 (43.7 %) | 713 (57.3 %) |
+  | 0.70 | 682 (54.8 %) | 816 (65.6 %) |
+  | 0.60 | 847 (68.1 %) | 969 (77.9 %) |
+  | 0.50 | 928 (74.6 %) | 1,050 (84.4 %) |
+
+  The image-based selection is conservative: an unknown overlap ends the jump. The limit of 5
+  neighbours is hardly involved (reached 28 times at 0.80).
+- **Check of the 0.80 subset against the poses**: consecutive kept images overlap by 0.86 in
+  median and 0.74 at the 10th percentile, but 23 of the 858 links are below 0.60 (minimum 0.35):
+  there the estimate was too optimistic. Not examined yet.
+- **Limits**: Mermaid's neighbours overlap by 0.87 in median, so little can be skipped at 0.80.
+  Only neighbours in time are compared, while most of the redundancy is between survey lines
+  (28 images per place in median according to the poses). The criterion is 2D: nothing yet says
+  the 3D reconstruction stays as good, which is the question raised by the supervisors
+  (2026-11-17): remove stationary images, keep different viewpoints.

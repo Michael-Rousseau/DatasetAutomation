@@ -9,15 +9,16 @@ another image. No matching is done here, so trying another threshold takes a sec
 
 import argparse
 import csv
-import sqlite3
 from pathlib import Path
 
 from dataset_automation.overlap.deduplication import (
     NearDuplicate,
     find_near_duplicates,
 )
-from dataset_automation.overlap.pipeline import MODULE as OVERLAP_MODULE
-from dataset_automation.overlap.stored_pairs import load_mutual_overlaps
+from dataset_automation.overlap.stored_pairs import (
+    latest_overlap_run,
+    load_stored_sequence,
+)
 from dataset_automation.storage.database import RunId, open_database, start_run
 
 DATABASE = Path("outputs/shared.sqlite")
@@ -44,7 +45,9 @@ def main() -> None:
         if arguments.overlap_run is not None
         else latest_overlap_run(connection)
     )
-    sequence = load_mutual_overlaps(connection, overlap_run)
+    if overlap_run is None:
+        raise SystemExit("no overlap run yet: run scripts/overlap/run_sequential.py")
+    sequence = load_stored_sequence(connection, overlap_run)
     if not sequence.paths:
         raise SystemExit(f"run {overlap_run} has no pair in {arguments.database}")
 
@@ -66,15 +69,6 @@ def main() -> None:
         f"{len(duplicates)} near-duplicates among {len(sequence.paths)} images ({share:.1%})"
     )
     print(f"report: {report_path}")
-
-
-def latest_overlap_run(connection: sqlite3.Connection) -> RunId:
-    row = connection.execute(
-        "SELECT MAX(id) FROM runs WHERE module = ?", (OVERLAP_MODULE,)
-    ).fetchone()
-    if row[0] is None:
-        raise SystemExit("no overlap run yet: run scripts/overlap/run_sequential.py")
-    return RunId(row[0])
 
 
 def write_report(

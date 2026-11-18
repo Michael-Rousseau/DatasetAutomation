@@ -8,6 +8,17 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class SelectionRow:
+    """`reference` is the kept image this one is compared with: the one it was skipped for,
+    or, for a kept image, the kept image before it. Both are None for the first image."""
+
+    position: int
+    is_kept: bool
+    reference: int | None
+    overlap_with_reference: float | None
+
+
+@dataclass(frozen=True)
 class CurvePoint:
     threshold: float
     image_count: int
@@ -74,3 +85,19 @@ def extraction_curve(
         )
         for threshold in thresholds
     ]
+
+
+def selection_rows(
+    image_count: int, overlaps: Mapping[tuple[int, int], float], kept: list[int]
+) -> list[SelectionRow]:
+    """One row per image, saying whether it is kept and what it overlaps the kept image by."""
+    kept_positions = set(kept)
+    rows: list[SelectionRow] = []
+    reference: int | None = None
+    for position in range(image_count):
+        is_kept = position in kept_positions
+        overlap = None if reference is None else overlaps.get((reference, position))
+        rows.append(SelectionRow(position, is_kept, reference, overlap))
+        if is_kept:
+            reference = position
+    return rows
