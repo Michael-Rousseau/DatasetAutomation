@@ -501,3 +501,44 @@ Computed with throwaway scripts, not in the repository. Numbers are for Mermaid 
   13.0°, 15.4° in median for gaps 1 to 5), so three images of gap are needed to reach 10°. It is
   unknown for 83 pairs, against 279 for the overlap (4.4 % against 12.6 % at gap 5): it does not
   assume a flat scene.
+
+## Selection rules compared (one-off experiment, 2026-11-18)
+
+Greedy rules along the sequence, judged from the poses. Overlaps and angles of run 21.
+
+- **Using the angle between neighbours does not help.** Jumping until the camera has moved by a
+  target angle (with a floor on the overlap), or skipping an image the camera barely moved for,
+  gives the same reconstructible area as the overlap rule at equal size or less (e.g. 636 images
+  → 89.5 %, 856 → 93.5 %).
+- **Uniform decimation and random subsets keep as much reconstructible area as the overlap
+  rule, or more**: 1 image in 2 (622) → 92.9 % against 90.4 % for overlap ≥ 0.75 (700); 1 in 4
+  (311) → 86.3 % against 80.0 % for overlap ≥ 0.50 (316); random 859 → 96.5 % against 94.2 %.
+  The overlap rule removes most where neighbours overlap most, i.e. in the high, wide views
+  that cover the rim; and the interior is nearly intact for every subset (≥ 98 % down to ~400
+  images). **The indicator saturates**: with tens of views per place, "3 views over 10°" only
+  discriminates on the rim.
+- **What the overlap rule buys is the chain.** Mutual overlap between consecutive kept images,
+  from the poses:
+
+  | Subset | images | median | p5 | links < 0.5 | < 0.3 | < 0.1 |
+  |---|---|---|---|---|---|---|
+  | all images | 1,244 | 0.87 | 0.67 | 15 | 1 | 1 |
+  | overlap ≥ 0.80 | 859 | 0.84 | 0.61 | 15 | 1 | 1 |
+  | overlap ≥ 0.70 | 562 | 0.76 | 0.55 | 15 | 1 | 1 |
+  | overlap ≥ 0.50 | 316 | 0.63 | 0.38 | 65 | 3 | 1 |
+  | 1 image in 2 | 622 | 0.79 | 0.48 | 35 | 5 | 0 |
+  | 1 image in 4 | 311 | 0.66 | 0.27 | 61 | 20 | 1 |
+  | random | 562 | 0.81 | 0.38 | 45 | 14 | 4 |
+  | random | 316 | 0.74 | 0.19 | 68 | 28 | 13 |
+
+  Down to 0.70 the overlap rule adds no weak link to those the dive already has; decimation and
+  random subsets break the sequence in places.
+- **Three definitions of the fan give the same ranking**: diagonal of the box of viewing
+  directions (397 m² reconstructible with all images), widest pair of directions, i.e. a real
+  triangle ground point – camera – camera (396 m²), and that plus directions not aligned, i.e.
+  three cameras forming a triangle rather than a line (374 m²: 5.5 % of the area is seen along
+  one line only).
+- **Consequences.** A quality measure needs two parts, what can be reconstructed and whether the
+  images stay connected; the first one must grade instead of thresholding (e.g. expected depth
+  precision from the number of views and their spread). And the gain is not in a smarter rule
+  between neighbours: it is between survey lines, which no sequential rule sees.
