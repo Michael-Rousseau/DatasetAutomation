@@ -563,3 +563,29 @@ Greedy rules along the sequence, judged from the poses. Overlaps and angles of r
 
   The depth noise is a model, not a measure: it assumes independent pixel noise and a flat
   seafloor, and has not been compared with a real reconstruction.
+- **Rules compared again with this judge** (one-off, run 21):
+
+  | Rule | images | inside kept | rim kept | depth noise (median / worst tenth) | links < 0.50 | < 0.30 |
+  |---|---|---|---|---|---|---|
+  | overlap ≥ 0.90 | 1,177 | 100.0 % | 92.3 % | ×1.03 / ×1.09 | 15 | 1 |
+  | overlap ≥ 0.80 | 859 | 99.9 % | 71.9 % | ×1.22 / ×1.48 | 15 | 1 |
+  | random | 859 | 100.0 % | 83.7 % | ×1.19 / ×1.29 | 33 | 7 |
+  | overlap ≥ 0.75 | 700 | 99.8 % | 54.0 % | ×1.39 / ×1.88 | 13 | 1 |
+  | 1 image in 2 | 622 | 100.0 % | 65.6 % | ×1.42 / ×1.64 | 35 | 5 |
+  | random | 622 | 99.9 % | 66.9 % | ×1.41 / ×1.83 | 41 | 7 |
+  | overlap ≥ 0.70 | 562 | 99.5 % | 48.0 % | ×1.56 / ×2.27 | 15 | 1 |
+  | angle ≤ 12°, overlap ≥ 0.5 | 524 | 99.3 % | 31.8 % | ×1.74 / ×2.71 | 36 | 2 |
+  | 1 image in 3 | 415 | 99.8 % | 50.8 % | ×1.75 / ×2.25 | 52 | 13 |
+  | overlap ≥ 0.50 | 316 | 95.8 % | 18.7 % | ×2.05 / ×2.80 | 65 | 3 |
+  | 1 image in 4 | 311 | 98.5 % | 38.8 % | ×2.05 / ×2.77 | 61 | 20 |
+  | random | 316 | 96.1 % | 23.9 % | ×2.07 / ×2.94 | 64 | 26 |
+
+  **Depth precision follows the number of images, whatever the rule**: the median noise is
+  close to sqrt(1,244 / kept) everywhere (×1.20 expected at 859, ×1.41 at 622, ×1.98 at 316). No
+  sequential rule buys precision; the overlap rule is even a little more uneven (worst tenth
+  ×1.48 against ×1.29 for a random subset of 859) and loses more of the rim. **What it does buy
+  is the chain**: down to 0.70 it keeps the dive's own weak links (15 and 1) where decimation
+  and random subsets double the links below 0.50 and multiply those below 0.30 by 5 to 26. The
+  angle-driven rules are worse on both counts.
+  To remove images without losing precision, a rule must know where a place is already seen
+  many times, i.e. use the overlaps between survey lines.
