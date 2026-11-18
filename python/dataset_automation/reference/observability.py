@@ -19,6 +19,8 @@ DEFAULT_CELL_M = 0.10
 # First guesses, not measured against a real reconstruction.
 MIN_VIEWS = 3
 MIN_FAN_DEG = 10.0
+# Relative size below which a difference of sums of squared slopes is rounding, not signal.
+ROUNDING_NOISE = 1e-9
 
 
 @dataclass(frozen=True, eq=False)
@@ -121,8 +123,12 @@ def observe(
         squared_slope_sum[seen]
         - (slope_sum[0, seen] ** 2 + slope_sum[1, seen] ** 2) / views[seen]
     )
-    # Rounding leaves tiny negative values where every view comes from the same place.
-    np.maximum(depth_information, 0.0, out=depth_information)
+    # Views from the same place should give exactly 0, but the subtraction leaves rounding
+    # noise of either sign, depending on the platform; a tiny positive value would read as a
+    # real, hugely noisy depth instead of no depth at all.
+    depth_information[
+        depth_information <= ROUNDING_NOISE * (squared_slope_sum + 1.0)
+    ] = 0.0
     return Observation(
         views=views, fan_deg=fan_deg, depth_information=depth_information
     )
