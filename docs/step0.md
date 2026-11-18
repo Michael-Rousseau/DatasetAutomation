@@ -589,3 +589,36 @@ Greedy rules along the sequence, judged from the poses. Overlaps and angles of r
   angle-driven rules are worse on both counts.
   To remove images without losing precision, a rule must know where a place is already seen
   many times, i.e. use the overlaps between survey lines.
+
+## Second dataset: `data_test_roman/data/set_003` (2026-11-18)
+
+328 JPEG images of 4056 × 3040, one every 2.2 s over 12 minutes (2024-09-23), a diver over rocky
+seafloor, very wide lens behind a port that darkens the corners. No poses, no calibration.
+`run_sequential.py` was run unchanged (5 neighbours, 1,625 pairs, 3 min 29 s).
+
+| Gap | unknown | overlap (median) | inliers (median) |
+|---|---|---|---|
+| 1 | 1.8 % | 0.74 | 427 |
+| 2 | 8.3 % | 0.58 | 130 |
+| 3 | 37.5 % | 0.50 | 32 |
+| 4 | 62.7 % | 0.44 | 11 |
+| 5 | 85.8 % | 0.39 | 5 |
+
+- **Neighbours are estimated all along the sequence** (98 %), including where the camera rises
+  and the water turns blue. There is no ground truth: only consistency and a look at the images.
+- **The port's rim does not pollute the matches**: on 5 pairs no inlier stayed at the same pixel
+  from one image to the next, and the dark corners are 0.4–1 % of the image.
+- **The only unknown neighbours are images 5–9 (and 264)**: a diver passes in front of the
+  camera. "Unknown" was the right answer, and the case is one for the masks of block VI.
+- **A truly stationary camera**: images 0–5 overlap by 0.95–0.99, the case Mermaid lacks.
+- **Less redundancy than Mermaid**: 0.74 between neighbours against 0.87, and the estimate
+  collapses beyond 2 images of gap, so comparing 5 neighbours is mostly wasted here. Fewer
+  matches too (350–600 per pair against ~1,600, for the same 8,000 keypoints).
+- **Selection**: 4 images removed at 0.80 (the stationary start), 22 at 0.70, 84 at 0.60, 153 at
+  0.50; 253 links are below 0.80 in the dive itself. A fixed 80 % makes no sense here: the
+  threshold belongs to the user, and the curve is what lets them choose.
+- **The curve is not monotonic**: 3 images removed at 0.90, 1 at 0.85. The greedy rule starts
+  from the first image and does not stop on the same images for every threshold.
+- **Missing most**: a calibration (no displacement, unknown distortion error on the overlaps),
+  then flagging images that do not show the seafloor, and a number of neighbours that adapts.
+- The images are committed in the repository (678 MB), unlike `data/`, which is ignored.
