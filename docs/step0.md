@@ -456,12 +456,36 @@ Computed with throwaway scripts, not in the repository. Numbers are for Mermaid 
   instead and the plane facing the camera is kept. That choice is an assumption (right for a
   seafloor seen from above); `rotation_source` records when it was used.
 - **MAGSAC does not refine the essential matrix**: with wrong matches the rotation was off by
-  0.28° on exact synthetic points. `USAC_ACCURATE` gives 0.00° (0.07° with 0.5 px of noise).
-- **On Mermaid** (1,243 consecutive pairs, 162 s): 1,229 known (98.9 %), |error| on the angle
-  0.14° in median (p90 0.76°, p99 3.0°), against 0.17° with MAGSAC; the plane model is used for
-  10 pairs, measured as well as the others (0.16°).
-- **Known gross errors**: about 1 % of the pairs get an angle near 1° where the truth is near 5°
-  (e.g. 316, 78, 266): the estimated rotation absorbs the displacement. Their homography share
-  ranges from 0.08 to 0.64, so they are not simply flat scenes; not explained yet. They would be
-  taken for stationary images: deciding "under 2°" finds 145 of the 171 true ones with 91 false
-  alarms.
+  0.28° on exact synthetic points; `USAC_ACCURATE` gives 0.00° (0.07° with 0.5 px of noise).
+- **Gross errors and their cause.** With one estimator, about 1 % of the consecutive Mermaid
+  pairs got an angle near 1° where the truth is near 5° (316, 78, 266…). The estimate was the
+  same whatever the random seed, and the matches were fine: the true pose fitted more of them
+  within 3 px than the returned one (935 against 726 for pair 316). The returned essential matrix
+  fitted the epipolar lines but put about half of the points behind a camera. Each estimator
+  (`USAC_ACCURATE`, MAGSAC, LMEDS) fails this way, rarely on the same pairs.
+- **Fix: several candidates, one count.** Every estimator proposes its essential matrix, each
+  decomposed into its four poses, and the homography adds its own; the pose supported by most
+  matches wins, a match supporting a pose when it is within 3 px of its epipolar line **and** in
+  front of both cameras. On the 25 worst pairs the error drops from 3.0° to 0.4° in median (21
+  fixed, 4 left), with no change on 25 ordinary pairs.
+- **The plane model must not win on support alone**: with a small step, a wrong pose fits the
+  epipolar line of every match (0.84° of invented rotation for a 10 cm step at 2 m on synthetic
+  relief). It is preferred only when the homography itself maps at least 80 % of the supported
+  points, and must otherwise be clearly better supported.
+- **On Mermaid** (1,243 consecutive pairs, 201 s for matching and estimation):
+
+  | | one estimator (MAGSAC) | candidates |
+  |---|---|---|
+  | pairs with an estimate | 1,235 | 1,243 (all) |
+  | \|error\| median | 0.17° | 0.13° |
+  | \|error\| p90 | 0.72° | 0.56° |
+  | \|error\| p99 | 2.83° | 1.63° |
+  | correlation with the truth | 0.971 | 0.986 |
+  | "under 2°": found / false alarms | 153 of 176 / 74 | 145 of 176 / 30 |
+
+  The plane model is used for 26 pairs (2.1 %), less accurately (0.47° in median).
+- **Left**: about 8 pairs (0.6 %) still read 0.2–0.7° for a truth of 2.7–4.0° (1065, 794, 264,
+  420, 776…): no candidate finds the right pose. The plane share of 80 % and the plane facing
+  the camera are still unmeasured assumptions, to settle on a dataset with flat seafloor. The
+  truth uses the rotation of the poses on our own matches: it checks the rotation, not the
+  matches.

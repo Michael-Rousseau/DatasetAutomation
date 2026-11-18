@@ -109,6 +109,22 @@ def test_turning_the_camera_does_not_change_the_angle() -> None:
     assert estimate.rotation_deg == pytest.approx(8.0, abs=0.02)
 
 
+@pytest.mark.parametrize("step_m", [0.05, 0.1])
+def test_small_step_over_relief_is_not_explained_away_by_a_rotation(
+    step_m: float,
+) -> None:
+    # With a small step a wrong pose still fits every epipolar line: the plane model once won
+    # here and invented 0.8 degrees of rotation.
+    points, step = seafloor_points(), np.array([step_m, 0.0, 0.0])
+
+    estimate = displacement(points, step, rotation_about_y(4.0))
+
+    assert estimate.triangulation_angle_deg == pytest.approx(
+        true_angle_deg(points, step), abs=0.02
+    )
+    assert estimate.rotation_deg == pytest.approx(4.0, abs=0.02)
+
+
 def test_a_larger_step_gives_a_larger_angle() -> None:
     points = seafloor_points()
 
