@@ -426,3 +426,20 @@ Computed with throwaway scripts, not in the repository. Numbers are for Mermaid 
   Limits: flat seafloor, so areas and angles are wrong on the relief; it says what the geometry
   allows, not whether the images actually connect; it has not been compared with a real
   reconstruction.
+- **The indicator is now in the repository**: `reference/observability.py`, used by
+  `scripts/overlap/select_images.py --mermaid-poses data/mermaid/107177.xml`, which appends the
+  reconstructible area kept by the selection to the summary (same numbers as the table above,
+  2 s). It needs the poses, so it is an evaluation on Mermaid, not part of the generic output.
+- **Camera displacement between consecutive images, as a triangulation angle** (exploration for
+  the next step, 1,243 pairs, 153 s). Essential matrix from the matches (calibrated, MAGSAC,
+  3 px), then for each inlier the angle between its ray in A and its ray in B rotated back to A;
+  the pair's value is the median. Compared with the same angle computed with the rotation from
+  the poses: estimate available for 1,235 pairs (99.4 %), |error| median 0.17° (p90 0.72°,
+  p99 2.8°), correlation 0.97; rotation error 0.29° in median. The angle is 3.6° in median
+  between neighbours (p5 1.3°, p95 8.7°) for a 0.24 m step. Mermaid has almost no truly
+  stationary images: 28 pairs under 1° (2.3 %), 176 under 2° (14 %), in runs mostly between
+  images 511 and 937, where the camera is high and the step is small against the distance.
+  Overlap and angle are related but not the same (correlation −0.58): of the 176 pairs under 2°,
+  81 have a mutual overlap below 0.90, and of the 340 pairs at overlap ≥ 0.90, 95 are under 2°
+  and 19 are at 5° or more. Deciding "under 2°" from the images finds 153 of the 176, with 74
+  false alarms: the threshold needs a margin.

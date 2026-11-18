@@ -12,14 +12,19 @@ second. Nothing is deleted. Written to `<output>/run_<id>/`:
     summary.txt       totals and the parameters used
 
 The overlap compared with the threshold is the share of the kept image seen by the next one.
+
+On Mermaid, `--mermaid-poses data/mermaid/107177.xml` adds an evaluation from the reference
+poses to the summary: the seafloor area a 3D reconstruction can still see with the kept images.
 """
 
 import argparse
 import csv
 from pathlib import Path
 
+import numpy as np
 from matplotlib.figure import Figure
 
+from dataset_automation.camera.frame import image_border_pixels
 from dataset_automation.overlap.extraction import (
     CurvePoint,
     SelectionRow,
@@ -33,6 +38,21 @@ from dataset_automation.overlap.stored_pairs import (
     latest_overlap_run,
     load_stored_sequence,
 )
+from dataset_automation.reference.footprints import camera_rays, compute_footprints
+from dataset_automation.reference.images import match_poses_to_images
+from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
+from dataset_automation.reference.observability import (
+    MIN_FAN_DEG,
+    MIN_VIEWS,
+    grid_over,
+    observe,
+    reconstructible,
+)
+from dataset_automation.reference.poses import camera_centres, load_camera_poses
+from dataset_automation.reference.seafloor import (
+    altitude_from_gsd,
+    plane_below_lowest_cameras,
+)
 from dataset_automation.storage.database import RunId, open_database, start_run
 
 DATABASE = Path("outputs/shared.sqlite")
@@ -40,6 +60,9 @@ OUTPUT_DIR = Path("outputs/selection")
 MODULE = "selection"
 DEFAULT_OVERLAP = 0.80
 CURVE_THRESHOLDS = (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.60, 0.50)
+# Smallest ground sampling distance announced for Mermaid: it anchors the seafloor plane.
+MERMAID_MIN_GSD_M = 0.0005
+BORDER_SAMPLES_PER_SIDE = 25
 
 
 def main() -> None:
@@ -52,6 +75,11 @@ def main() -> None:
     )
     parser.add_argument("--database", type=Path, default=DATABASE)
     parser.add_argument("--output", type=Path, default=OUTPUT_DIR)
+    parser.add_argument(
+        "--mermaid-poses",
+        type=Path,
+        help="reference poses of Mermaid (XML): evaluate what the kept images still see",
+    )
     arguments = parser.parse_args()
 
     connection = open_database(arguments.database)
@@ -89,6 +117,10 @@ def main() -> None:
     write_curve(run_directory / "curve.csv", curve)
     plot_curve(curve, arguments.overlap).savefig(run_directory / "curve.png", dpi=110)
     summary = summarize(sequence, rows, arguments.overlap, overlap_run, run_id)
+    if arguments.mermaid_poses is not None:
+        summary += evaluate_with_mermaid_poses(
+            arguments.mermaid_poses, sequence.paths, kept
+        )
     (run_directory / "summary.txt").write_text(summary)
     print(summary, end="")
     print(f"written to {run_directory}")
@@ -171,6 +203,57 @@ def summarize(
         f"unknown: {weak.unknown} (the sequence itself lacks the overlap there)\n"
         "only neighbours in time are compared: redundancy between survey lines or passes "
         "is not removed\n"
+    )
+
+
+def evaluate_with_mermaid_poses(
+    poses_path: Path, paths: list[Path], kept: list[int]
+) -> str:
+    """Seafloor area a 3D reconstruction can see with all images and with the kept ones."""
+    poses = load_camera_poses(poses_path)
+    pose_of_stem = {label: index for index, label in enumerate(poses.labels)}
+    match = match_poses_to_images(poses.labels, paths)
+    if match.images_without_pose:
+        raise SystemExit(
+            f"{len(match.images_without_pose)} images have no pose in {poses_path}"
+        )
+    centres = camera_centres(poses)
+    plane = plane_below_lowest_cameras(
+        centres[:, 2],
+        altitude_from_gsd(MERMAID_MIN_GSD_M, MERMAID_INTRINSICS.focal_px),
+    )
+    border = image_border_pixels(
+        MERMAID_INTRINSICS.width_px,
+        MERMAID_INTRINSICS.height_px,
+        BORDER_SAMPLES_PER_SIDE,
+    )
+    footprints = compute_footprints(
+        poses, camera_rays(MERMAID_INTRINSICS, border), plane
+    )
+    grid = grid_over(footprints)
+    cameras = [pose_of_stem[path.stem] for path in paths]
+
+    everything = observe(grid, footprints, centres, plane.height_m, cameras)
+    selection = observe(
+        grid, footprints, centres, plane.height_m, [cameras[i] for i in kept]
+    )
+    seen = everything.views > 0
+    area_before = reconstructible(everything)
+    # Counted inside what all the images reconstruct: the question is what the selection loses.
+    area_after = reconstructible(selection) & area_before
+    before_m2 = area_before.sum() * grid.cell_area_m2
+    after_m2 = area_after.sum() * grid.cell_area_m2
+    return (
+        "evaluation from the reference poses (flat seafloor, cells of "
+        f"{grid.cell_m * 100:.0f} cm; reconstructible = at least {MIN_VIEWS} images "
+        f"from directions at least {MIN_FAN_DEG:.0f} degrees apart)\n"
+        f"reconstructible area: {before_m2:.0f} m2 with all images, "
+        f"{after_m2:.0f} m2 with the kept ones ({after_m2 / before_m2:.1%})\n"
+        f"images seeing a place (median): {np.median(everything.views[seen]):.0f} "
+        f"-> {np.median(selection.views[seen]):.0f}\n"
+        "fan of viewing directions (median): "
+        f"{np.median(everything.fan_deg[seen]):.0f} "
+        f"-> {np.median(selection.fan_deg[seen]):.0f} degrees\n"
     )
 
 
