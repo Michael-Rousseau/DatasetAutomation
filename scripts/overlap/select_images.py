@@ -21,7 +21,6 @@ import argparse
 import csv
 from pathlib import Path
 
-import numpy as np
 from matplotlib.figure import Figure
 
 from dataset_automation.camera.frame import image_border_pixels
@@ -38,6 +37,7 @@ from dataset_automation.overlap.stored_pairs import (
     latest_overlap_run,
     load_stored_sequence,
 )
+from dataset_automation.reference.evaluation import RIM_M, evaluate_selection
 from dataset_automation.reference.footprints import camera_rays, compute_footprints
 from dataset_automation.reference.images import match_poses_to_images
 from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
@@ -45,8 +45,6 @@ from dataset_automation.reference.observability import (
     MIN_FAN_DEG,
     MIN_VIEWS,
     grid_over,
-    observe,
-    reconstructible,
 )
 from dataset_automation.reference.poses import camera_centres, load_camera_poses
 from dataset_automation.reference.seafloor import (
@@ -232,28 +230,34 @@ def evaluate_with_mermaid_poses(
     )
     grid = grid_over(footprints)
     cameras = [pose_of_stem[path.stem] for path in paths]
-
-    everything = observe(grid, footprints, centres, plane.height_m, cameras)
-    selection = observe(
-        grid, footprints, centres, plane.height_m, [cameras[i] for i in kept]
+    evaluation = evaluate_selection(
+        grid,
+        footprints,
+        centres,
+        plane.height_m,
+        cameras,
+        [cameras[position] for position in kept],
     )
-    seen = everything.views > 0
-    area_before = reconstructible(everything)
-    # Counted inside what all the images reconstruct: the question is what the selection loses.
-    area_after = reconstructible(selection) & area_before
-    before_m2 = area_before.sum() * grid.cell_area_m2
-    after_m2 = area_after.sum() * grid.cell_area_m2
+    links = "; ".join(
+        f"{kept_count} below {overlap:.2f} ({all_count} with all images)"
+        for overlap, (all_count, kept_count) in evaluation.weak_links.items()
+    )
     return (
         "evaluation from the reference poses (flat seafloor, cells of "
         f"{grid.cell_m * 100:.0f} cm; reconstructible = at least {MIN_VIEWS} images "
         f"from directions at least {MIN_FAN_DEG:.0f} degrees apart)\n"
-        f"reconstructible area: {before_m2:.0f} m2 with all images, "
-        f"{after_m2:.0f} m2 with the kept ones ({after_m2 / before_m2:.1%})\n"
-        f"images seeing a place (median): {np.median(everything.views[seen]):.0f} "
-        f"-> {np.median(selection.views[seen]):.0f}\n"
-        "fan of viewing directions (median): "
-        f"{np.median(everything.fan_deg[seen]):.0f} "
-        f"-> {np.median(selection.fan_deg[seen]):.0f} degrees\n"
+        f"reconstructible area: {evaluation.reconstructible_m2:.0f} m2 with all images, "
+        f"{evaluation.kept_reconstructible_m2:.0f} m2 with the kept ones "
+        f"({evaluation.kept_share:.1%})\n"
+        f"  more than {RIM_M:.0f} m inside that area: "
+        f"{evaluation.inside_kept_share:.1%} kept; on its rim: "
+        f"{evaluation.rim_kept_share:.1%} kept\n"
+        "depth noise where still reconstructible (1.00 = as with all images): "
+        f"median x{evaluation.median_depth_noise:.2f}, "
+        f"one place in ten above x{evaluation.worst_tenth_depth_noise:.2f}\n"
+        f"images seeing a place (median): {evaluation.median_views[0]:.0f} "
+        f"-> {evaluation.median_views[1]:.0f}\n"
+        f"consecutive kept images whose mutual overlap is low: {links}\n"
     )
 
 

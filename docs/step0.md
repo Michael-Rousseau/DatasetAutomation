@@ -542,3 +542,24 @@ Greedy rules along the sequence, judged from the poses. Overlaps and angles of r
   images stay connected; the first one must grade instead of thresholding (e.g. expected depth
   precision from the number of views and their spread). And the gain is not in a smarter rule
   between neighbours: it is between survey lines, which no sequential rule sees.
+
+## A judge with two parts (branch `a/selection-evaluation`)
+
+`reference/evaluation.py`, shown by `select_images.py --mermaid-poses`:
+
+- **What can be reconstructed**, now graded. `depth_information` is the scatter of the viewing
+  directions of a cell around their mean, summed over the images; depth noise is proportional to
+  1 / sqrt of it, so it grows with fewer images and with images standing closer together. The
+  summary gives the depth noise relative to all the images, and the reconstructible area kept
+  inside and on the rim (within 1 m of its edge) separately.
+- **Whether the images stay chained**: consecutive kept images whose mutual overlap, from the
+  poses, is below 0.50 and 0.30, next to the same count for all the images.
+
+  | Selection | images | inside kept | rim kept | depth noise (median / worst tenth) | links < 0.50 | < 0.30 |
+  |---|---|---|---|---|---|---|
+  | all | 1,244 | 100 % | 100 % | ×1.00 | 15 | 1 |
+  | overlap ≥ 0.80 | 859 | 99.9 % | 71.9 % | ×1.22 / ×1.48 | 15 | 1 |
+  | overlap ≥ 0.50 | 316 | 95.8 % | 18.7 % | ×2.05 / ×2.80 | 65 | 3 |
+
+  The depth noise is a model, not a measure: it assumes independent pixel noise and a flat
+  seafloor, and has not been compared with a real reconstruction.
