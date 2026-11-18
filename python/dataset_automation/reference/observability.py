@@ -9,6 +9,7 @@ and says what the geometry allows, not whether the images actually connect.
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 import shapely
 
@@ -18,6 +19,8 @@ DEFAULT_CELL_M = 0.10
 # First guesses, not measured against a real reconstruction.
 MIN_VIEWS = 3
 MIN_FAN_DEG = 10.0
+# Relative size below which a difference of sums of squared slopes is rounding, not signal.
+ROUNDING_NOISE = 1e-9
 
 
 @dataclass(frozen=True, eq=False)
@@ -37,11 +40,16 @@ class SeafloorGrid:
 class Observation:
     """Per grid cell (row = y, column = x): images seeing it and the fan of their directions.
 
-    `fan_deg` is 0 for a cell seen from a single position.
+    `fan_deg` is 0 for a cell seen from a single position. `depth_information` grades what the
+    fan only thresholds: the scatter of the viewing directions around their mean, summed over
+    the images. The depth of a point is known with a noise proportional to 1 / sqrt of it, so
+    it grows with both the number of images and how far apart they stand; it is 0 from a
+    single position.
     """
 
     views: np.ndarray
     fan_deg: np.ndarray
+    depth_information: np.ndarray
 
 
 def grid_over(footprints: np.ndarray, cell_m: float = DEFAULT_CELL_M) -> SeafloorGrid:
@@ -69,6 +77,8 @@ def observe(
     # vertical); the fan is measured across the box holding every direction of the cell.
     lowest = np.full((2, *shape), np.inf)
     highest = np.full((2, *shape), -np.inf)
+    slope_sum = np.zeros((2, *shape))
+    squared_slope_sum = np.zeros(shape)
 
     for camera in cameras:
         polygon = footprint_polygon(footprints, camera)
@@ -80,21 +90,25 @@ def observe(
         )
         rows = slice(np.searchsorted(grid.y_m, min_y), np.searchsorted(grid.y_m, max_y))
         cell_x, cell_y = np.meshgrid(grid.x_m[columns], grid.y_m[rows])
-        inside = shapely.contains_xy(polygon, cell_x, cell_y)
+        seen_here = shapely.contains_xy(polygon, cell_x, cell_y)
 
         centre = camera_centres[camera]
         height = centre[2] - seafloor_height_m
         slopes = np.stack(
             [(centre[0] - cell_x) / height, (centre[1] - cell_y) / height]
         )
-        views[rows, columns] += inside
+        views[rows, columns] += seen_here
+        slope_sum[:, rows, columns] += np.where(seen_here, slopes, 0.0)
+        squared_slope_sum[rows, columns] += np.where(
+            seen_here, slopes[0] ** 2 + slopes[1] ** 2, 0.0
+        )
         lowest[:, rows, columns] = np.where(
-            inside,
+            seen_here,
             np.minimum(lowest[:, rows, columns], slopes),
             lowest[:, rows, columns],
         )
         highest[:, rows, columns] = np.where(
-            inside,
+            seen_here,
             np.maximum(highest[:, rows, columns], slopes),
             highest[:, rows, columns],
         )
@@ -103,7 +117,21 @@ def observe(
     seen = views > 0
     extent = highest[:, seen] - lowest[:, seen]
     fan_deg[seen] = np.degrees(np.arctan(np.hypot(extent[0], extent[1])))
-    return Observation(views=views, fan_deg=fan_deg)
+    # Sum of squared distances to the mean direction: Σ|s|² − |Σs|² / n.
+    depth_information = np.zeros(shape)
+    depth_information[seen] = (
+        squared_slope_sum[seen]
+        - (slope_sum[0, seen] ** 2 + slope_sum[1, seen] ** 2) / views[seen]
+    )
+    # Views from the same place should give exactly 0, but the subtraction leaves rounding
+    # noise of either sign, depending on the platform; a tiny positive value would read as a
+    # real, hugely noisy depth instead of no depth at all.
+    depth_information[
+        depth_information <= ROUNDING_NOISE * (squared_slope_sum + 1.0)
+    ] = 0.0
+    return Observation(
+        views=views, fan_deg=fan_deg, depth_information=depth_information
+    )
 
 
 def reconstructible(
@@ -113,3 +141,26 @@ def reconstructible(
 ) -> np.ndarray:
     """Cells seen by enough images from directions spread widely enough."""
     return (observation.views >= min_views) & (observation.fan_deg >= min_fan_deg)
+
+
+def depth_noise_ratio(everything: Observation, subset: Observation) -> np.ndarray:
+    """How much noisier the depth of each cell is with `subset` than with `everything`.
+
+    1 means unchanged, 2 twice the noise, infinity that the subset cannot give a depth there.
+    NaN where even `everything` gives none.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        ratio = np.sqrt(everything.depth_information / subset.depth_information)
+    ratio[everything.depth_information == 0] = np.nan
+    return ratio
+
+
+def inside(area: np.ndarray, grid: SeafloorGrid, margin_m: float) -> np.ndarray:
+    """Cells of the boolean `area` further than `margin_m` from the nearest cell outside it."""
+    # Padded so that the border of the grid counts as outside too.
+    padded = np.pad(area.astype(np.uint8), 1)
+    distance_m = (
+        cv2.distanceTransform(padded, cv2.DIST_L2, cv2.DIST_MASK_PRECISE)[1:-1, 1:-1]
+        * grid.cell_m
+    )
+    return area & (distance_m > margin_m)
