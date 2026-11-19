@@ -1,20 +1,25 @@
-# CLAUDE.md — Dataset Automation, Person A: reference overlap
-
-> The scope described below is where this work started. It has widened since (feature layer,
-> sequential overlap, selection, camera displacement, loop closures): see
-> [`overlap_status.md`](overlap_status.md).
+# CLAUDE.md — Dataset Automation, Person A: overlap engine
 
 ## Context
 
 Project: platform that turns large underwater image datasets into structured data.
-I am Person A (overlap engine). **Current scope is narrow on purpose**: compute the
-**reference overlap between images from known camera poses**, on the Mermaid dataset only,
-first in Python, then ported to Rust with PyO3.
+I am Person A (overlap engine). The goal, set with the supervisors on 2026-11-17: from a folder
+of images alone, propose **the smallest set of images that keeps the same 3D reconstruction
+quality**. Removing 2D duplicates is the easy part; a view of the same place from another
+angle is information, not redundancy.
 
-This reference overlap will later serve as ground truth to evaluate feature-based overlap.
-Nothing else is in scope for now (no feature matching, no dedup, no extraction, no other datasets).
+Two parts:
 
-Background specs (for context only): @docs/01_overlap_engine.md
+- **Overlap and selection**: overlap between images, camera displacement, images to keep for a
+  chosen overlap, with the curve of images removed against that overlap.
+- **Loop closures**: links between survey lines and between passes, with the angle between the
+  views.
+
+The method must work on any dataset: no pose and no position as input. The Mermaid reference
+poses are used **to evaluate only**. Targets and a 3D viewer (Open3D) come later.
+
+Where the work stands: [`overlap_status.md`](overlap_status.md). Background specs (for
+context only): @docs/01_overlap_engine.md
 
 ## Working mode — IMPORTANT
 
@@ -30,12 +35,15 @@ I want to understand everything we build. My Rust level: intermediate. My Python
 
 ## Tech stack
 
-- Python: numpy, opencv-python (undistortion), shapely (polygons), matplotlib (plots), pytest.
+- Python: numpy, opencv-python (features, geometry), shapely (polygons), matplotlib (plots), SQLite (shared database), pytest.
 - Rust: pyo3, numpy crate, rayon. Built with maturin, mixed Python/Rust layout.
 
 ## Rules
 
 - **Python reference first, Rust port second**, with a test proving both give the same results (within tolerance).
+- **Unknown rather than invented**: an estimate that cannot be supported is stored as unknown, with its reason.
+- No computation of several minutes without my go; never two heavy runs at once.
+- Shared packages (`features/`, `storage/`, `camera/`) and new dependencies need the agreement of B and C.
 - **Pure functions**: clear inputs and outputs, no global state.
 - Data lives in `data/mermaid/`, is **gitignored**, and is never modified.
 - Don't install anything globally or download large files without asking me first.
@@ -56,24 +64,22 @@ I want to understand everything we build. My Rust level: intermediate. My Python
 
 ## Roadmap (one step at a time)
 
-0. **Skeleton**: maturin + PyO3 project, a "hello world" Rust function called from Python, pytest and cargo test running.
+Done, in order: project skeleton, Mermaid loader, reference overlap from the poses, feature
+layer (SIFT, matching), pairwise overlap, sequential overlap into the shared database,
+deduplication, selection with its curve, camera displacement, a pose-based judge of a
+selection, loop closure candidates.
 
-1. **Loader (Python)**: parse the poses XML and the intrinsics, match poses to image files.
-   Sanity check: plot camera positions (top view) and viewing directions. Nadir cameras should all look roughly the same way, towards the seafloor.
+Next:
 
-2. **Reference overlap from poses (Python)** — the core of this scope. Sub-steps:
-   - 2a. **Seafloor plane**: discuss the options with me (e.g. plane fitted under the camera centres with an estimated altitude, horizontal plane at a fixed depth…) and their limits. I choose.
-   - 2b. **Image footprint**: sample points along the image border (not just the 4 corners: distortion curves the edges), undistort them, cast rays from the camera centre, intersect with the plane → footprint polygon.
-   - 2c. **Overlap ratio**: define it clearly. `area(A ∩ B) / area(A)` is asymmetric; also consider IoU. Explain the difference and let me choose what to store.
-   - 2d. **Candidate pairs**: 1,244 images ≈ 773,000 pairs. Avoid brute force: pre-filter with a spatial index (e.g. shapely STRtree) so only footprints that can intersect are compared.
-   - 2e. **Sanity checks**: consecutive images should overlap strongly, distant ones not at all. Plot footprints for a few pairs over each other. Histogram of overlap values.
-   - Output: a table (image_a, image_b, overlap, iou) saved to a file (Parquet or CSV) in `outputs/`.
+1. Confirm the loop closure candidates by matching and store them, inside the pipeline, with a
+   script.
+2. Measure everything again on Mermaid after the last fix of the inlier spread filter.
+3. A selection that uses the links between survey lines: remove an image only where it adds
+   neither coverage nor a new viewpoint.
+4. A calibration file format, then the same measurements on a second dataset.
 
-3. **Rust port of step 2 (PyO3 + rayon)**: port the footprint intersection over candidate pairs.
-   Equality test against the Python version, then a benchmark (Python vs Rust, single-thread vs rayon).
-   Explain what crosses the Python/Rust boundary and why it matters for performance.
-
-**Stop after step 3.**
+Later, not scheduled: targets, the Open3D viewer, the Rust port of the slow parts (the Rust
+extension is still the "hello world" of the skeleton).
 
 ## Decisions and findings
 
