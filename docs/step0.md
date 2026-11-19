@@ -652,3 +652,34 @@ the two cameras see the middle of what they share.
 - Time gap at mutual ≥ 0.5: 258 images in median (p10 91, p90 586): adjacent lines and later
   passes both contribute.
 - Limits: flat seafloor, so areas and angles are approximate, least reliable for tilted views.
+
+## Loop closures, step 2: candidates from image resemblance (one-off, 2026-11-19)
+
+One VLAD vector per image from the cached SIFT features: RootSIFT descriptors, a codebook of 64
+words (k-means on 120 descriptors per image), residuals summed per word, each word normalised,
+signed square root, L2. Similarity is the dot product; images 30 or fewer apart in time are
+excluded. No new dependency, CPU only: 21 s for the 1,244 images, codebook included.
+
+Judged against the revisits of step 1 (mutual overlap ≥ 0.5, from the poses). A random far pair
+is such a revisit 6.0 % of the time.
+
+| k candidates per image | images with a true revisit among them | candidates that are revisits | … at mutual ≥ 0.3 | angle of the revisits found (median) |
+|---|---|---|---|---|
+| 1 | 56 % | 53.7 % | 79.0 % | 12° |
+| 5 | 76 % | 50.3 % | 75.0 % | 13° |
+| 10 | 85 % | 47.3 % | 72.3 % | 15° |
+| 20 | 91 % | 43.0 % | 68.5 % | 16° |
+| 50 | 95 % | 35.6 % | 62.1 % | 19° |
+
+- **Resemblance proposes well**: with 10 candidates, 85 % of the images that have a revisit get
+  at least one, and nearly half of the candidates are revisits, eight times chance. 91 % of the
+  candidates at least touch the image.
+- **It favours the views that look alike**, as expected: share of the true revisits proposed in
+  the top 10 of either image, by angle between the two views: under 5° → 44 %, 5–10° → 33 %,
+  10–20° → 16 %, 20–40° → 8 %, over 40° → 3 % (11 % overall, 36 % in the top 50). The revisits
+  found are 12–15° apart in median against 27° for all of them. That bias suits the next step,
+  since those are the pairs the matcher can verify, but the widest baselines are not proposed.
+- 180 images with revisits get none in their 10 candidates, mostly early in the dive (67 in
+  images 0–199, 39 in 200–399).
+- Not measured yet: how many candidates survive verification by matching, and whether other
+  settings (more words, fewer keypoints, a learned descriptor) do better.
