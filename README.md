@@ -4,6 +4,7 @@ Automated analysis of large underwater image datasets: overlap between images, d
 tracking metrics, masks, targets and GSD. Python first; measured hotspots move to Rust (PyO3).
 
 Project scope and work split: [`docs/00_project.md`](docs/00_project.md).
+Where the overlap engine stands: [`docs/overlap_status.md`](docs/overlap_status.md).
 How to work on the repository together: [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Requirements

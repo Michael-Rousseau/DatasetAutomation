@@ -20,7 +20,7 @@ from dataset_automation.camera.undistortion import undistort_to_normalized
 from dataset_automation.features.interface import Features, Matches
 from dataset_automation.overlap.pairwise import MIN_INLIERS, UnknownReason
 
-# Measured on the 1,243 consecutive Mermaid pairs against the reference poses (see docs/step0.md).
+# Measured on the 1,243 consecutive Mermaid pairs against the reference poses (see docs/overlap_journal.md).
 RANSAC_THRESHOLD_PX = 3.0
 RANSAC_CONFIDENCE = 0.999
 # The five-point algorithm needs five matches; fewer gives no model at all.

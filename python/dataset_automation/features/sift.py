@@ -14,7 +14,7 @@ class SiftExtractor:
     Keypoints are always returned in full-resolution pixel coordinates, whatever `scale` is.
     `max_keypoints` = 0 keeps every keypoint SIFT finds.
 
-    Defaults measured on 40 Mermaid images spread over the dive (docs/step0.md): OpenCV's
+    Defaults measured on 40 Mermaid images spread over the dive (docs/overlap_journal.md): OpenCV's
     contrast threshold (0.04) leaves low-contrast sand with ~16 keypoints and ~1 match between
     images 5 apart; 0.01 raises that to ~56 matches. Full resolution adds keypoints but almost
     no matches, and the 8000 cap keeps brute-force matching at ~0.08 s per pair.

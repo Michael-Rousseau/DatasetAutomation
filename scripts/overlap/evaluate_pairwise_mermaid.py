@@ -8,7 +8,7 @@ share of pairs reported unknown, then median and 90th-percentile absolute error 
 signed error (bias) on the known ones. Draws outputs/overlap_estimate_vs_reference.png.
 
 The reference is itself approximate (horizontal seafloor plane, ≥ 2.7 m of relief: see
-docs/step0.md), so small errors measure agreement with it, not with the truth.
+docs/overlap_journal.md), so small errors measure agreement with it, not with the truth.
 """
 
 import argparse
@@ -40,7 +40,7 @@ POSES_PATH = Path("data/mermaid/107177.xml")
 IMAGES_DIRECTORY = Path("data/mermaid/images")
 OUTPUT_DIR = Path("outputs")
 GAPS = (1, 2, 5, 10, 20)
-# Same seafloor model as the reference footprints (docs/step0.md, step 2a).
+# Same seafloor model as the reference footprints (docs/overlap_journal.md, step 2a).
 MIN_GSD_M = 0.0005
 BANDS = ((0.8, 1.0), (0.6, 0.8), (0.4, 0.6), (0.2, 0.4), (0.0, 0.2))
 SIZE = (MERMAID_INTRINSICS.width_px, MERMAID_INTRINSICS.height_px)
