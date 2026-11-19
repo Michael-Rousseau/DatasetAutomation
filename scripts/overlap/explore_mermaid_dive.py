@@ -14,7 +14,6 @@ SIFT features are cached in outputs/cache/ so both runs extract each image once.
 import argparse
 from pathlib import Path
 
-import cv2
 import numpy as np
 from matplotlib.figure import Figure
 from shapely import Polygon, STRtree
@@ -22,6 +21,7 @@ from shapely import Polygon, STRtree
 from dataset_automation.features.interface import Features
 from dataset_automation.features.matching import RatioTestMatcher
 from dataset_automation.features.sift import SiftExtractor
+from dataset_automation.features.store import load_or_extract
 from dataset_automation.overlap.pairwise import (
     PairOverlapEstimate,
     estimate_homography_overlap,
@@ -67,7 +67,7 @@ def main() -> None:
 def sequential() -> None:
     paths = images_in_capture_order()
     footprints = reference_footprints()
-    features = [cached_features(index, path) for index, path in enumerate(paths)]
+    features = [cached_features(path) for path in paths]
     matcher = RatioTestMatcher()
 
     gaps = range(1, NEIGHBOURS + 1)
@@ -171,7 +171,7 @@ def revisits() -> None:
     )
 
     features = {
-        i: cached_features(i, paths[i])
+        i: cached_features(paths[i])
         for i in sorted({i for a, b, _ in positives + negatives for i in (a, b)})
     }
     matcher = RatioTestMatcher()
@@ -305,26 +305,8 @@ def reference_overlap(footprints: np.ndarray, a: int, b: int) -> float:
     return pair_overlap(polygon_a, polygon_b).a_in_b
 
 
-def cached_features(index: int, path: Path) -> Features:
-    cache = CACHE_DIR / f"{path.stem}.npz"
-    if cache.exists():
-        stored = np.load(cache)
-        return Features(stored["keypoints"], stored["descriptors"], stored["scores"])
-    image = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
-    # imread signals an unreadable file by returning None, not by raising.
-    if image is None:
-        raise OSError(f"cannot read image {path}")
-    features = SiftExtractor().extract(np.asarray(image))
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    np.savez(
-        cache,
-        keypoints=features.keypoints,
-        descriptors=features.descriptors,
-        scores=features.scores,
-    )
-    if index % 100 == 0:
-        print(f"  extracted {index}", flush=True)
-    return features
+def cached_features(path: Path) -> Features:
+    return load_or_extract(path, CACHE_DIR, SiftExtractor())
 
 
 def images_in_capture_order() -> list[Path]:
