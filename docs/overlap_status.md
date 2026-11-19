@@ -63,8 +63,8 @@ ones being where a diver passes in front of the camera.
 ## What was learned
 
 - **The relief breaks the flat-scene model.** A homography is reliable between neighbours, not
-  below about 40 % of overlap. The camera displacement does not assume a flat scene and is known
-  three times more often.
+  below about 40 % of overlap. The camera displacement does not assume a flat scene and is
+  unknown three times less often (83 pairs against 279).
 - **Between neighbours, no rule beats another on precision.** Depth precision follows the
   number of images kept, whatever the rule. What the overlap rule guarantees is that the kept
   images still chain together, which taking one image in k or a random subset does not.
