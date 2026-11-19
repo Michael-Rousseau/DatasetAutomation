@@ -71,15 +71,7 @@ def observe(
     cameras: Iterable[int],
 ) -> Observation:
     """Views and fan of viewing directions per cell, for the cameras at indices `cameras`."""
-    shape = (len(grid.y_m), len(grid.x_m))
-    views = np.zeros(shape, dtype=np.int32)
-    # A viewing direction is stored as its slopes along x and y (tangent of the angle to the
-    # vertical); the fan is measured across the box holding every direction of the cell.
-    lowest = np.full((2, *shape), np.inf)
-    highest = np.full((2, *shape), -np.inf)
-    slope_sum = np.zeros((2, *shape))
-    squared_slope_sum = np.zeros(shape)
-
+    directions = _Directions.none(shape=(len(grid.y_m), len(grid.x_m)))
     for camera in cameras:
         polygon = footprint_polygon(footprints, camera)
         if polygon is None:
@@ -90,48 +82,82 @@ def observe(
         )
         rows = slice(np.searchsorted(grid.y_m, min_y), np.searchsorted(grid.y_m, max_y))
         cell_x, cell_y = np.meshgrid(grid.x_m[columns], grid.y_m[rows])
-        seen_here = shapely.contains_xy(polygon, cell_x, cell_y)
-
         centre = camera_centres[camera]
         height = centre[2] - seafloor_height_m
-        slopes = np.stack(
-            [(centre[0] - cell_x) / height, (centre[1] - cell_y) / height]
+        directions.add(
+            (rows, columns),
+            seen=shapely.contains_xy(polygon, cell_x, cell_y),
+            slopes=np.stack(
+                [(centre[0] - cell_x) / height, (centre[1] - cell_y) / height]
+            ),
         )
-        views[rows, columns] += seen_here
-        slope_sum[:, rows, columns] += np.where(seen_here, slopes, 0.0)
-        squared_slope_sum[rows, columns] += np.where(
-            seen_here, slopes[0] ** 2 + slopes[1] ** 2, 0.0
-        )
-        lowest[:, rows, columns] = np.where(
-            seen_here,
-            np.minimum(lowest[:, rows, columns], slopes),
-            lowest[:, rows, columns],
-        )
-        highest[:, rows, columns] = np.where(
-            seen_here,
-            np.maximum(highest[:, rows, columns], slopes),
-            highest[:, rows, columns],
+    return directions.observation()
+
+
+@dataclass(eq=False)
+class _Directions:
+    """Running statistics of the viewing directions of each cell, one camera at a time.
+
+    A viewing direction is stored as its slopes along x and y: the tangent of its angle to the
+    vertical.
+    """
+
+    views: np.ndarray
+    lowest: np.ndarray
+    highest: np.ndarray
+    slope_sum: np.ndarray
+    squared_slope_sum: np.ndarray
+
+    @classmethod
+    def none(cls, shape: tuple[int, int]) -> "_Directions":
+        return cls(
+            views=np.zeros(shape, dtype=np.int32),
+            lowest=np.full((2, *shape), np.inf),
+            highest=np.full((2, *shape), -np.inf),
+            slope_sum=np.zeros((2, *shape)),
+            squared_slope_sum=np.zeros(shape),
         )
 
-    fan_deg = np.zeros(shape)
-    seen = views > 0
-    extent = highest[:, seen] - lowest[:, seen]
-    fan_deg[seen] = np.degrees(np.arctan(np.hypot(extent[0], extent[1])))
-    # Sum of squared distances to the mean direction: Σ|s|² − |Σs|² / n.
-    depth_information = np.zeros(shape)
-    depth_information[seen] = (
-        squared_slope_sum[seen]
-        - (slope_sum[0, seen] ** 2 + slope_sum[1, seen] ** 2) / views[seen]
-    )
-    # Views from the same place should give exactly 0, but the subtraction leaves rounding
-    # noise of either sign, depending on the platform; a tiny positive value would read as a
-    # real, hugely noisy depth instead of no depth at all.
-    depth_information[
-        depth_information <= ROUNDING_NOISE * (squared_slope_sum + 1.0)
-    ] = 0.0
-    return Observation(
-        views=views, fan_deg=fan_deg, depth_information=depth_information
-    )
+    def add(
+        self, window: tuple[slice, slice], seen: np.ndarray, slopes: np.ndarray
+    ) -> None:
+        """One camera: `seen` and `slopes` cover the cells of `window` (rows, columns)."""
+        rows, columns = window
+        self.views[rows, columns] += seen
+        self.slope_sum[:, rows, columns] += np.where(seen, slopes, 0.0)
+        self.squared_slope_sum[rows, columns] += np.where(
+            seen, slopes[0] ** 2 + slopes[1] ** 2, 0.0
+        )
+        lowest, highest = self.lowest[:, rows, columns], self.highest[:, rows, columns]
+        self.lowest[:, rows, columns] = np.where(
+            seen, np.minimum(lowest, slopes), lowest
+        )
+        self.highest[:, rows, columns] = np.where(
+            seen, np.maximum(highest, slopes), highest
+        )
+
+    def observation(self) -> Observation:
+        seen = self.views > 0
+        # The fan is measured across the box holding every direction of the cell.
+        extent = self.highest[:, seen] - self.lowest[:, seen]
+        fan_deg = np.zeros(self.views.shape)
+        fan_deg[seen] = np.degrees(np.arctan(np.hypot(extent[0], extent[1])))
+
+        # Sum of squared distances to the mean direction: Σ|s|² − |Σs|² / n.
+        depth_information = np.zeros(self.views.shape)
+        depth_information[seen] = (
+            self.squared_slope_sum[seen]
+            - (self.slope_sum[0, seen] ** 2 + self.slope_sum[1, seen] ** 2)
+            / self.views[seen]
+        )
+        # Views from the same place should give exactly 0, but the subtraction leaves rounding
+        # noise of either sign, depending on the platform; a tiny positive value would read as
+        # a real, hugely noisy depth instead of no depth at all.
+        rounding = ROUNDING_NOISE * (self.squared_slope_sum + 1.0)
+        depth_information[depth_information <= rounding] = 0.0
+        return Observation(
+            views=self.views, fan_deg=fan_deg, depth_information=depth_information
+        )
 
 
 def reconstructible(

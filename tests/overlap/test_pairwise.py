@@ -3,6 +3,7 @@ import pytest
 from shapely import affinity
 
 from dataset_automation.camera.intrinsics import Intrinsics
+from dataset_automation.features.interface import Features, Matches
 from dataset_automation.features.matching import RatioTestMatcher
 from dataset_automation.features.sift import SiftExtractor
 from dataset_automation.overlap.geometry import image_frame
@@ -182,3 +183,34 @@ def test_refuses_overlap_supported_only_by_a_repeated_object() -> None:
 
     assert estimate.unknown_reason is UnknownReason.INLIERS_TOO_CONCENTRATED
     assert estimate.a_in_b is None
+
+
+def plate_with_one_stray_match() -> tuple[Features, Features, Matches]:
+    """30 matches on a 40 px patch and one far away, all moved by the same translation."""
+    random = np.random.default_rng(0)
+    patch = random.uniform([200.0, 300.0], [240.0, 340.0], (30, 2))
+    points_a = np.vstack([patch, [[600.0, 50.0]]])
+    points_b = points_a + [30.0, -20.0]
+    indices = np.arange(len(points_a))
+    return (
+        synthetic_features(points_a),
+        synthetic_features(points_b),
+        Matches(index_pairs=np.column_stack([indices, indices]), scores=np.ones(31)),
+    )
+
+
+def synthetic_features(keypoints: np.ndarray) -> Features:
+    return Features(
+        keypoints=keypoints,
+        descriptors=np.zeros((len(keypoints), 1), dtype=np.float32),
+        scores=np.ones(len(keypoints)),
+    )
+
+
+def test_one_stray_inlier_does_not_hide_a_repeated_object() -> None:
+    features_a, features_b, matches = plate_with_one_stray_match()
+
+    estimate = estimate_homography_overlap(features_a, features_b, matches, SIZE, SIZE)
+
+    assert estimate.inlier_count == 31
+    assert estimate.unknown_reason is UnknownReason.INLIERS_TOO_CONCENTRATED

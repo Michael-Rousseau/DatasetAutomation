@@ -5,25 +5,15 @@ from pathlib import Path
 import numpy as np
 from matplotlib.figure import Figure
 
-from dataset_automation.camera.frame import image_border_pixels
 from dataset_automation.reference.footprints import (
-    DEFAULT_SAMPLES_PER_SIDE,
-    camera_rays,
-    compute_footprints,
     footprint_polygon,
     invalid_footprints,
 )
 from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
-from dataset_automation.reference.poses import camera_centres, load_camera_poses
-from dataset_automation.reference.seafloor import (
-    altitude_from_gsd,
-    plane_below_lowest_cameras,
-)
+from dataset_automation.reference.mermaid import load_mermaid_reference
 
 POSES_PATH = Path("data/mermaid/107177.xml")
 OUTPUT_DIR = Path("outputs")
-# Smallest GSD announced for the dataset (report 107174): the lowest cameras see ~0.5 mm/px.
-MIN_GSD_M = 0.0005
 CONSECUTIVE_SHOWN = range(0, 40, 4)
 
 
@@ -51,28 +41,20 @@ def plot_footprints(footprints: np.ndarray, centres: np.ndarray) -> Figure:
 
 
 def main() -> None:
-    poses = load_camera_poses(POSES_PATH)
-    centres = camera_centres(poses)
-    plane = plane_below_lowest_cameras(
-        centres[:, 2], altitude_from_gsd(MIN_GSD_M, MERMAID_INTRINSICS.focal_px)
+    reference = load_mermaid_reference(POSES_PATH)
+    poses, centres, footprints = (
+        reference.poses,
+        reference.centres,
+        reference.footprints,
     )
-    rays = camera_rays(
-        MERMAID_INTRINSICS,
-        image_border_pixels(
-            MERMAID_INTRINSICS.width_px,
-            MERMAID_INTRINSICS.height_px,
-            DEFAULT_SAMPLES_PER_SIDE,
-        ),
-    )
-    footprints = compute_footprints(poses, rays, plane)
 
     invalid = invalid_footprints(footprints)
     polygons = [footprint_polygon(footprints, i) for i in range(len(poses))]
     areas = np.array([p.area if p is not None else np.nan for p in polygons])
-    altitudes = centres[:, 2] - plane.height_m
+    altitudes = centres[:, 2] - reference.seafloor_height_m
     gsd_mm = 1000 * altitudes / MERMAID_INTRINSICS.focal_px
 
-    print(f"seafloor plane z = {plane.height_m:.2f} m")
+    print(f"seafloor plane z = {reference.seafloor_height_m:.2f} m")
     print(f"invalid footprints: {invalid.sum()} / {len(poses)}")
     print(
         f"non-simple polygons: {sum(p is not None and not p.is_valid for p in polygons)}"
