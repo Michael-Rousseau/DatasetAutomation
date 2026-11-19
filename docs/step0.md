@@ -622,3 +622,33 @@ seafloor, very wide lens behind a port that darkens the corners. No poses, no ca
 - **Missing most**: a calibration (no displacement, unknown distortion error on the overlaps),
   then flagging images that do not show the seafloor, and a number of neighbours that adapts.
 - The images are committed in the repository (678 MB), unlike `data/`, which is ignored.
+
+## Loop closures, step 1: what a useful revisit is (branch `a/loop-candidates`)
+
+From the poses (flat seafloor), every pair of images more than 30 images apart in time: 736,291
+pairs, of which 537,363 (73 %) have intersecting footprints. The angle is the one under which
+the two cameras see the middle of what they share.
+
+| Definition | pairs | images with ≥ 1 | per image (median, p10–p90) | angle (median) | altitude ratio | heading difference |
+|---|---|---|---|---|---|---|
+| any overlap | 537,363 (73 %) | 100 % | 908 (551–1,113) | 47° | 1.41 | 88° |
+| mutual overlap ≥ 0.3 | 145,918 (19.8 %) | 99 % | 248 (58–403) | 32° | 1.23 | 81° |
+| **mutual overlap ≥ 0.5** | 44,014 (6.0 %) | 96 % | 66 (9–146) | 27° | 1.15 | 78° |
+| mutual overlap ≥ 0.7 | 6,369 (0.9 %) | 77 % | 6 (0–26) | 23° | 1.09 | 71° |
+| mutual overlap ≥ 0.8 | 913 (0.1 %) | 39 % | 0 (0–5) | 19° | 1.06 | 23° |
+| IoU ≥ 0.3 | 102,840 (14.0 %) | 99 % | 173 (37–286) | 29° | 1.25 | 79° |
+| IoU ≥ 0.5 | 23,789 (3.2 %) | 93 % | 33 (3–81) | 25° | 1.17 | 77° |
+
+- **Working definition: mutual overlap ≥ 0.5, more than 30 images apart.** Each image sees at
+  least half of the other. It keeps 6 % of the far pairs while nearly every image still has
+  some (1,195 of 1,244, 66 in median); the 49 without are mostly the first images (0–26).
+- **A revisit is almost never the same view again.** At mutual ≥ 0.5 the two cameras see the
+  shared area 27° apart in median (p10 10°, p90 50°): 91 % of the revisits are 10° apart or
+  more, and only 944 pairs (2 %) are under 5°, concerning 545 images. Between survey lines the
+  redundancy is in coverage, not in viewpoint: these pairs are the wide baselines a
+  reconstruction wants, not duplicates. This answers the supervisors' open point for Mermaid.
+- **It is also why they are hard to find**: 68 % of them are 20° apart or more and the heading
+  differs by 78° in median, far from the 3.6° between neighbours on which the matcher was tuned.
+- Time gap at mutual ≥ 0.5: 258 images in median (p10 91, p90 586): adjacent lines and later
+  passes both contribute.
+- Limits: flat seafloor, so areas and angles are approximate, least reliable for tilted views.
