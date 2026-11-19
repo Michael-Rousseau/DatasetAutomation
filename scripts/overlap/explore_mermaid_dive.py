@@ -19,7 +19,6 @@ import numpy as np
 from matplotlib.figure import Figure
 from shapely import Polygon, STRtree
 
-from dataset_automation.camera.frame import image_border_pixels
 from dataset_automation.features.interface import Features
 from dataset_automation.features.matching import RatioTestMatcher
 from dataset_automation.features.sift import SiftExtractor
@@ -28,18 +27,13 @@ from dataset_automation.overlap.pairwise import (
     estimate_homography_overlap,
 )
 from dataset_automation.reference.footprints import (
-    camera_rays,
-    compute_footprints,
     footprint_polygon,
 )
 from dataset_automation.reference.images import match_poses_to_images
 from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
+from dataset_automation.reference.mermaid import load_mermaid_reference
 from dataset_automation.reference.overlap import pair_overlap
 from dataset_automation.reference.poses import camera_centres, load_camera_poses
-from dataset_automation.reference.seafloor import (
-    altitude_from_gsd,
-    plane_below_lowest_cameras,
-)
 
 POSES_PATH = Path("data/mermaid/107177.xml")
 IMAGES_DIRECTORY = Path("data/mermaid/images")
@@ -291,14 +285,7 @@ def overlap(
 
 
 def reference_footprints() -> np.ndarray:
-    poses = load_camera_poses(POSES_PATH)
-    plane = plane_below_lowest_cameras(
-        camera_centres(poses)[:, 2],
-        altitude_from_gsd(MIN_GSD_M, MERMAID_INTRINSICS.focal_px),
-    )
-    return compute_footprints(
-        poses, camera_rays(MERMAID_INTRINSICS, image_border_pixels(*SIZE, 25)), plane
-    )
+    return load_mermaid_reference(POSES_PATH).footprints
 
 
 def required_footprint(footprints: np.ndarray, index: int) -> Polygon:
