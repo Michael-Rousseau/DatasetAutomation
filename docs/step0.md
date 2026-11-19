@@ -683,3 +683,35 @@ is such a revisit 6.0 % of the time.
   images 0–199, 39 in 200–399).
 - Not measured yet: how many candidates survive verification by matching, and whether other
   settings (more words, fewer keypoints, a learned descriptor) do better.
+
+## Loop closures, step 3: candidates verified by matching (one-off, 2026-11-19)
+
+The 10 most resembling far images of every image (VLAD, no poses) give 10,916 distinct pairs.
+Each was matched, then overlap (homography) and displacement were estimated with the sequential
+settings: 1,499 s (25 min), 0.14 s per pair. Poses are used only to judge.
+
+- **Of the candidates**, 4,915 (45 %) are true revisits (mutual ≥ 0.5 from the poses), 5,019
+  touch the image without reaching 0.5, and 982 do not touch it.
+- **Verification accepts the right ones**: an overlap is estimated for 90 % of the true
+  revisits, 56 % of the merely touching ones, and **1 of the 982 that do not touch** (320–831,
+  0.72 claimed with 17 inliers; image 320 shows GCP plates, the known repeated-target trap, not
+  checked). Accepted links: |error| on the overlap 0.047 in median (p90 0.126); 642 have a
+  reference mutual overlap below 0.3.
+- **By angle between the two views** (true revisits): verified 100 % under 10°, 96 % at 10–20°,
+  78 % at 20–40°, 69 % beyond 40°. Far better than the 14 % measured between passes 0–200 and
+  800–1000 on all overlapping pairs: resemblance pre-selects the pairs that can be matched.
+- **Per image, without any pose**: 1,189 of 1,244 images (96 %) get at least one verified link
+  to an image more than 30 apart in time, 1,124 (90 %) at least three, 10 in median. The 55
+  without are mostly the first images (35 in 0–199). The far links alone join 1,187 images
+  (95 %) in one connected group.
+- **Displacement** is known for 75 % of the candidates against 66 % for the overlap, and for 98 %
+  of the images on at least one far pair. On verified links the estimated angle is 17.5° in
+  median against 16.8° from the poses (|difference| 2.1° in median, the two being measured
+  differently: median over matched points against the middle of the shared footprint).
+  2,984 verified links are 20° apart or more.
+- **End to end**: finding the links between survey lines and passes is feasible from the images
+  alone, at about 21 s + 25 min for 1,244 images, with a false-link rate of 1 in 982 on
+  non-overlapping candidates.
+- Limits: one dataset; one setting of the descriptor; the 30-image gap and k = 10 are choices;
+  wide baselines are under-represented among the candidates; throwaway scripts, nothing in the
+  library yet.
