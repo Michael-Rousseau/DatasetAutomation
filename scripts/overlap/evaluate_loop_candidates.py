@@ -66,7 +66,9 @@ def image_vectors(paths: list[Path]) -> np.ndarray:
     extractor = SiftExtractor()
     random = np.random.default_rng(0)
     descriptors = [
-        root_sift(load_or_extract(path, CACHE_DIRECTORY, extractor).descriptors)
+        root_sift(
+            load_or_extract(path, CACHE_DIRECTORY, extractor).features.descriptors
+        )
         for path in paths
     ]
     sample = np.vstack(

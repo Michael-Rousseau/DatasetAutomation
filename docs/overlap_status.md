@@ -25,10 +25,13 @@ parameters and the version of the code.
 uv run python scripts/overlap/run_sequential.py <folder> --register   # overlaps, ~10 min for 1,244 images
 uv run python scripts/overlap/select_images.py --overlap 0.80         # images to keep + curve, 1 s
 uv run python scripts/overlap/find_duplicates.py --threshold 0.95     # near-copies, 1 s
+uv run python scripts/overlap/find_loops.py <folder>                  # loop closures, ~25 min for 1,244 images
 ```
 
-The first command is the only long one. The other two read its result from
-`outputs/shared.sqlite`, so another threshold costs nothing. `select_images.py` writes
+The first and the last commands are the long ones. The two in between read the result of the
+first from `outputs/shared.sqlite`, so another threshold costs nothing. `find_loops.py` writes
+its links to the same `pairs` table under a run of its own, and keeps the features of each
+image on disk, so a second run does not extract them again. `select_images.py` writes
 `kept_images.txt`, `images.csv`, `curve.csv`, `curve.png` and `summary.txt`.
 
 On Mermaid only, where a calibration and reference poses exist:
@@ -83,16 +86,17 @@ ones being where a diver passes in front of the camera.
 - **No calibration file format**: the displacement works on Mermaid only, through an option
   named after it.
 - **The judge of 3D quality is a model**, never compared with a real reconstruction.
-- **Loop closures are not in the pipeline yet**: proposing is in the library, confirming and
-  storing are not.
+- **Loop closures are stored but not used yet**: `find_loops.py` proposes, confirms and
+  records them; the selection does not read them. The script itself has only run on synthetic
+  images: its first full run on Mermaid is still to do.
 - **Numbers predate the last fix** of the inlier spread filter (2026-11-19) and were not
   measured again; a sample suggests few correct pairs are affected.
 - Features are extracted again at every sequential run, and an interrupted run cannot resume.
 
 ## Next
 
-1. Confirm and store the loop closure candidates in the pipeline, with a script.
-2. Measure everything again on Mermaid after the last fix.
+1. Run `find_loops.py` on Mermaid, and measure everything again after the last fix.
+2. Read the stored links back and judge them against the poses.
 3. A selection that uses the links between survey lines: remove an image only where it adds
    neither coverage nor a new viewpoint.
 4. A calibration format, then the same measurements on a second dataset.

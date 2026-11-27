@@ -652,3 +652,31 @@ settings: 1,499 s (25 min), 0.14 s per pair. Poses are used only to judge.
 - Limits: one dataset; one setting of the descriptor; the 30-image gap and k = 10 are choices;
   wide baselines are under-represented among the candidates; throwaway scripts, nothing in the
   library yet.
+
+## Loop closures in the pipeline (branch `a/loop-verification`, 2026-11-27)
+
+`scripts/overlap/find_loops.py` chains what steps 2 and 3 did by hand: features read from
+disk, codebook, one vector per image, far candidates, confirmation by matching, recording.
+
+Decisions:
+
+- **One measure for both modes.** A candidate goes through `measure_pair`, the function the
+  sequential mode uses, and gives a `MeasuredPair` (formerly `SequentialOverlap`): the code
+  writing to `pairs` and to the displacements file is shared, not copied.
+- **A run of its own**, with the module name `overlap-loops`. `select_images.py` reads the
+  latest run of module `overlap`: a loop run under the same name would have replaced the
+  sequential overlaps it expects.
+- **Unconfirmed candidates are stored too**, as unknown: "compared, could not tell" stays
+  different from "never compared".
+- **Features on disk, with the image size.** Comparing two images needs their frames, and the
+  cache did not hold them. Files written before are completed at first use by reading the
+  image again, without extracting.
+- **One cache folder per image folder and extractor setting**, since the cache is keyed by file
+  name. Two files with the same name in one run are refused. The Mermaid cache made before
+  this script is `outputs/cache/sift_defaults`: pass it with `--cache`.
+- **Two readings of the features**: a sample of each image for the codebook, then the
+  vectors. The descriptors of 1,244 images do not fit in memory together.
+
+Not measured: the script has run on synthetic images only (a camera going along a line and
+back). The numbers of step 3 above come from the one-off run of 2026-11-19, before the fix of
+the inlier spread.

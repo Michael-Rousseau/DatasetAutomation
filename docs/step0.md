@@ -71,9 +71,9 @@ selection, loop closure candidates.
 
 Next:
 
-1. Confirm the loop closure candidates by matching and store them, inside the pipeline, with a
-   script.
-2. Measure everything again on Mermaid after the last fix of the inlier spread filter.
+1. Run `scripts/overlap/find_loops.py` on Mermaid (it has only run on synthetic images), and
+   measure everything again after the last fix of the inlier spread filter.
+2. Read the stored links back and judge them against the poses.
 3. A selection that uses the links between survey lines: remove an image only where it adds
    neither coverage nor a new viewpoint.
 4. A calibration file format, then the same measurements on a second dataset.
@@ -100,4 +100,5 @@ uv run python scripts/reference/check_mermaid_poses.py   # step 1: pose conventi
 uv run python scripts/reference/check_footprints.py      # step 2b: footprint stats + plot in outputs/
 uv run python scripts/overlap/run_sequential.py data/mermaid/images --register   # sequential overlaps into outputs/shared.sqlite
 uv run python scripts/overlap/select_images.py --overlap 0.80   # images to keep + curve, from the stored overlaps
+uv run python scripts/overlap/find_loops.py data/mermaid/images   # loop closures into outputs/shared.sqlite
 ```

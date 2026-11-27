@@ -38,13 +38,14 @@ def test_features_come_back_as_they_were_saved(tmp_path: Path) -> None:
         scores=np.array([0.9, 0.1]),
     )
 
-    save_features(tmp_path / "nested" / "image.npz", features)
+    save_features(tmp_path / "nested" / "image.npz", features, (160, 120))
     loaded = load_features(tmp_path / "nested" / "image.npz")
 
-    np.testing.assert_array_equal(loaded.keypoints, features.keypoints)
-    np.testing.assert_array_equal(loaded.descriptors, features.descriptors)
-    np.testing.assert_array_equal(loaded.scores, features.scores)
-    assert loaded.descriptors.dtype == np.float32
+    np.testing.assert_array_equal(loaded.features.keypoints, features.keypoints)
+    np.testing.assert_array_equal(loaded.features.descriptors, features.descriptors)
+    np.testing.assert_array_equal(loaded.features.scores, features.scores)
+    assert loaded.features.descriptors.dtype == np.float32
+    assert loaded.image_size == (160, 120)
 
 
 def test_an_image_is_extracted_only_once(tmp_path: Path) -> None:
@@ -55,8 +56,33 @@ def test_an_image_is_extracted_only_once(tmp_path: Path) -> None:
     second = load_or_extract(image_path, tmp_path / "cache", extractor)
 
     assert extractor.calls == 1
-    assert len(first) > 0
-    np.testing.assert_array_equal(second.keypoints, first.keypoints)
+    assert len(first.features) > 0
+    np.testing.assert_array_equal(second.features.keypoints, first.features.keypoints)
+    # textured_image(120, 160) is 120 rows by 160 columns.
+    assert first.image_size == second.image_size == (160, 120)
+
+
+def test_file_written_without_the_size_is_completed_not_extracted_again(
+    tmp_path: Path,
+) -> None:
+    image_path = write_image(tmp_path / "dive_0001.png")
+    extractor = CountingExtractor()
+    features = load_or_extract(image_path, tmp_path / "cache", extractor).features
+    cache_path = tmp_path / "cache" / "dive_0001.npz"
+    np.savez(
+        cache_path,
+        keypoints=features.keypoints,
+        descriptors=features.descriptors,
+        scores=features.scores,
+    )
+    with pytest.raises(ValueError):
+        load_features(cache_path)
+
+    completed = load_or_extract(image_path, tmp_path / "cache", extractor)
+
+    assert extractor.calls == 1
+    assert completed.image_size == (160, 120)
+    assert load_features(cache_path).image_size == (160, 120)
 
 
 def test_unreadable_image_is_an_error_and_leaves_no_cache(tmp_path: Path) -> None:
