@@ -114,4 +114,6 @@ The project is down to one person: the plan stops at loop closures and 3D recons
 | `features/` | SIFT, matching, VLAD image vectors, features on disk |
 | `overlap/` | pairwise overlap, camera displacement, sequential mode, the two selection rules, loop closures |
 | `reference/` | Mermaid poses, footprints, revisits, and the judge of a selection |
+| `reconstruction/` | files exchanged with COLMAP, and bringing a reconstruction onto a reference |
 | `scripts/overlap/` | the commands above and the evaluations behind the numbers |
+| `scripts/reconstruction/` | pairs for COLMAP, and its cameras against the reference poses (not run against COLMAP yet) |
