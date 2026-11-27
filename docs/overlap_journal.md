@@ -764,3 +764,54 @@ Ready before COLMAP is installed, and not yet run against it:
   median distance of 3 cm and one camera 3 m away.
 
 The reference poses are Metashape's own reconstruction: agreeing with them is not being exact.
+
+## First real reconstructions (branch `a/reconstruction-run`, 2026-11-27)
+
+COLMAP 4.2.1 from Homebrew, without GPU support, on an Apple M3 Pro (11 cores). Sparse
+reconstruction only. COLMAP matches the pairs we give it (`pairs.txt`: neighbours and loop
+closures whose overlap is known) and nothing else; it calibrates the camera itself. Chain:
+`scripts/reconstruction/reconstruct_with_colmap.sh`, then `evaluate_colmap_model.py` and
+`preview_colmap_model.py`.
+
+Trial on the first 150 images (833 pairs), to choose the mapper:
+
+| | Incremental mapper | Global mapper |
+|---|---|---|
+| Mapping time | 333 s | 109 s |
+| Images placed | 150 of 150 | 150 of 150 |
+| Distance to the reference positions, median | 3.2 cm | 3.3 cm |
+| … nine in ten below | 5.1 cm | 5.0 cm |
+| 3D points | 149,437 | 130,050 |
+
+Same positions, a third of the time: the global mapper is used from here on. The focal length
+COLMAP finds, 2,345 px, is close to Metashape's 2,334.
+
+Three selections of Mermaid, global mapper:
+
+| | 5 views, with loops | 1 image in 2 | Overlap ≥ 0.80 |
+|---|---|---|---|
+| Images | 606 | 622 | 859 |
+| Pairs matched | 2,307 | 2,986 | 6,105 |
+| Images placed | 605 | 622 | 858 |
+| Distance to the reference, median | 2.0 cm | 1.8 cm | 2.2 cm |
+| … nine in ten below | 4.0 cm | 3.9 cm | 3.9 cm |
+| Cameras beyond 20 cm | 6 | 3 | 4 |
+| Worst camera | 1.4 m | 0.8 m | 5.6 m |
+| 3D points | 223,850 | 164,725 | 320,237 |
+| Reprojection error | 1.85 px | 1.58 px | 1.68 px |
+| Time: extraction, matching, mapping | 216 + 42 + 150 s | 212 + 40 + 145 s | not usable |
+
+- **Half the images still reconstruct**, in one piece, with the cameras 2 cm from the reference
+  in median. The pairs from the overlap engine are enough for COLMAP to link everything.
+- **The 5-views rule does not beat one image in two on these measures.** Positions are the same
+  to within what one run each can tell; it gives 36 % more 3D points, which fits its better
+  cover of the rim without proving it.
+- **Every badly placed camera is between images 780 and 806**, in the three sets, and image 795
+  is the one not placed in two of them. The fault is in that stretch of the dive, not in a
+  selection; why is not known (the sequential run has one unknown overlap around there).
+- The reconstructed points span 3 m of height: the relief the flat-seafloor reference ignores.
+
+Limits: one run per set; the distance is the agreement between COLMAP and Metashape, not an
+error; nothing is said about the dense surface, where a loss of depth precision would show.
+The times of the third set (51 min, 157 min and 9 min) include a stretch where the machine
+was paused or asleep and are not to be used; the full set of 1,244 images was not run.

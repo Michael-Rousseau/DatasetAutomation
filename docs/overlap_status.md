@@ -60,6 +60,7 @@ On Mermaid (1,244 images of a diver's survey grid), against the reference poses.
 | Camera displacement between neighbours | known for all pairs, off by 0.13° in median for 3.6° |
 | Far images proposed by resemblance (10 per image) | nearly half are true revisits; 85 % of the images get one |
 | Proposed pairs confirmed by matching | 95 % of the images linked to another line or pass; no false link among 982 candidates that do not overlap |
+| Reconstruction with COLMAP from our pairs, half the images (606 or 622) | all placed but one, 2 cm from the reference positions in median, in 7 min |
 | Overlap of a confirmed far pair | off by 0.056 in median, by more than 0.2 for 2 % |
 
 On a second dataset without poses or calibration (`data_test_roman/data/set_003`, 328 images)
@@ -91,7 +92,9 @@ ones being where a diver passes in front of the camera.
 - **The reference is approximate**: a flat seafloor under at least 2.7 m of relief.
 - **No calibration file format**: the displacement works on Mermaid only, through an option
   named after it.
-- **The judge of 3D quality is a model**, never compared with a real reconstruction.
+- **The judge of 3D quality is a model.** Sparse reconstructions with COLMAP place the cameras
+  of the reduced sets 2 cm from the reference, but the dense surface, where depth precision
+  shows, cannot be computed without an NVIDIA card.
 - **The comparison of the selection by support with the other rules was done by hand**; the
   loop closures are judged by `scripts/overlap/evaluate_loops.py`.
 - **Sequential numbers predate the last fix** of the inlier spread filter (2026-11-19) and were
@@ -102,8 +105,7 @@ ones being where a diver passes in front of the camera.
 
 The project is down to one person: the plan stops at loop closures and 3D reconstruction.
 
-1. A real reconstruction (COLMAP or Metashape) of the full set and of reduced sets, to check
-   the judge of 3D quality against what a reconstruction gives.
+1. Why the cameras between images 780 and 806 are badly placed in every reconstruction.
 2. Measure the sequential overlaps again on Mermaid after the last fix.
 3. A calibration format, then the same measurements on a second dataset.
 
@@ -116,4 +118,4 @@ The project is down to one person: the plan stops at loop closures and 3D recons
 | `reference/` | Mermaid poses, footprints, revisits, and the judge of a selection |
 | `reconstruction/` | files exchanged with COLMAP, and bringing a reconstruction onto a reference |
 | `scripts/overlap/` | the commands above and the evaluations behind the numbers |
-| `scripts/reconstruction/` | pairs for COLMAP, and its cameras against the reference poses (not run against COLMAP yet) |
+| `scripts/reconstruction/` | sparse reconstruction with COLMAP from our pairs, its cameras against the reference poses, a preview |

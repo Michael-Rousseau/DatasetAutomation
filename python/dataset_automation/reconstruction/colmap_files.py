@@ -12,6 +12,8 @@ import numpy as np
 
 # IMAGE_ID, QW, QX, QY, QZ, TX, TY, TZ, CAMERA_ID, NAME
 IMAGE_LINE_FIELDS = 10
+# POINT3D_ID, X, Y, Z, R, G, B, then the error and the track, which are not read.
+POINT_LINE_FIELDS = 7
 
 
 def write_match_list(file: TextIO, pairs: Iterable[tuple[str, str]]) -> int:
@@ -47,6 +49,25 @@ def read_camera_centres(images_file: Path) -> dict[str, np.ndarray]:
         translation = np.array(fields[5:8], dtype=float)
         centres[fields[9]] = -_rotation(quaternion).T @ translation
     return centres
+
+
+def read_points(points_file: Path) -> tuple[np.ndarray, np.ndarray]:
+    """Positions, (N, 3), and colours, (N, 3) in 0-255, of the 3D points of a text model
+    (`points3D.txt`)."""
+    positions: list[list[float]] = []
+    colours: list[list[int]] = []
+    for line in points_file.read_text().splitlines():
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split(maxsplit=POINT_LINE_FIELDS)
+        if len(fields) < POINT_LINE_FIELDS:
+            raise ValueError(f"not a point line of a COLMAP text model: {line!r}")
+        positions.append([float(value) for value in fields[1:4]])
+        colours.append([int(value) for value in fields[4:7]])
+    return (
+        np.array(positions, dtype=float).reshape(-1, 3),
+        np.array(colours, dtype=np.uint8).reshape(-1, 3),
+    )
 
 
 def _rotation(quaternion: np.ndarray) -> np.ndarray:

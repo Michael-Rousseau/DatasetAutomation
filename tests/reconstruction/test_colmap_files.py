@@ -6,6 +6,7 @@ import pytest
 
 from dataset_automation.reconstruction.colmap_files import (
     read_camera_centres,
+    read_points,
     write_match_list,
 )
 
@@ -63,3 +64,28 @@ def test_file_that_is_not_a_model_is_refused(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError):
         read_camera_centres(images)
+
+
+def test_points_come_with_their_colour(tmp_path: Path) -> None:
+    points = tmp_path / "points3D.txt"
+    points.write_text(
+        "# 3D point list with one line of data per point:\n"
+        "#   POINT3D_ID, X, Y, Z, R, G, B, ERROR, TRACK[] as (IMAGE_ID, POINT2D_IDX)\n"
+        "7 1.5 -2.0 0.25 10 200 30 0.81 1 5 2 9\n"
+        "9 0.0 0.0 4.0 255 0 0 1.2 3 1 4 2 5 3\n"
+    )
+
+    positions, colours = read_points(points)
+
+    np.testing.assert_allclose(positions, [[1.5, -2.0, 0.25], [0.0, 0.0, 4.0]])
+    np.testing.assert_array_equal(colours, [[10, 200, 30], [255, 0, 0]])
+
+
+def test_model_without_any_point(tmp_path: Path) -> None:
+    points = tmp_path / "points3D.txt"
+    points.write_text("# empty\n")
+
+    positions, colours = read_points(points)
+
+    assert positions.shape == (0, 3)
+    assert colours.shape == (0, 3)
