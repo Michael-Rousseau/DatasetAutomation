@@ -5,12 +5,19 @@ timestamps, metadata). Until then every module registers plain JPEG and PNG file
 """
 
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 from dataset_automation.storage.database import start_run
 
 # Suffix to the `images.source` value.
 IMAGE_SUFFIXES = {".jpg": "jpeg", ".jpeg": "jpeg", ".png": "png"}
+
+
+@dataclass(frozen=True)
+class RegisteredImage:
+    image_id: int
+    path: Path
 
 
 def image_files(root: Path) -> list[Path]:
@@ -38,3 +45,23 @@ def register_image_files(
     )
     connection.commit()
     return connection.total_changes - before
+
+
+def registered_images_under(
+    connection: sqlite3.Connection, image_root: Path
+) -> list[RegisteredImage]:
+    """Image files of the `images` table that live under `image_root`, ordered by id.
+
+    Only JPEG and PNG files: a ROS bag frame is not a file, and RAW images need their own
+    reader.
+    """
+    root = image_root.resolve()
+    rows = connection.execute(
+        "SELECT id, path FROM images WHERE frame_index = 0 AND source IN ('jpeg', 'png') "
+        "ORDER BY id"
+    )
+    return [
+        RegisteredImage(image_id, Path(path))
+        for image_id, path in rows
+        if Path(path).resolve().is_relative_to(root)
+    ]

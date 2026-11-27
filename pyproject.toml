@@ -13,13 +13,6 @@ dependencies = [
     "shapely>=2.1.2",
 ]
 
-[project.optional-dependencies]
-cleaning = [
-    "torch>=2.14.0",
-    "torchvision>=0.29.0",
-    "transformers>=5.17.0",
-]
-
 [dependency-groups]
 dev = [
     "maturin>=1.9.4,<2",
@@ -49,7 +42,8 @@ addopts = ["--import-mode=importlib"]
 [tool.ruff]
 target-version = "py312"
 src = ["python"]
-extend-exclude = ["docs"]
+# archive/ holds code that is no longer part of the package: see archive/README.md.
+extend-exclude = ["docs", "archive"]
 
 [tool.pyright]
 include = ["python", "tests", "scripts"]

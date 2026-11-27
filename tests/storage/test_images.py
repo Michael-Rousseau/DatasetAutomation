@@ -6,7 +6,11 @@ import numpy as np
 import pytest
 
 from dataset_automation.storage.database import open_database
-from dataset_automation.storage.images import image_files, register_image_files
+from dataset_automation.storage.images import (
+    image_files,
+    register_image_files,
+    registered_images_under,
+)
 
 
 @pytest.fixture
@@ -59,3 +63,15 @@ def test_registering_again_adds_only_the_new_files(
 
     assert added == 1
     assert database.execute("SELECT COUNT(*) FROM images").fetchone()[0] == 2
+
+
+def test_registered_images_are_only_those_below_the_root(
+    database: sqlite3.Connection, tmp_path: Path
+) -> None:
+    inside = write_image(tmp_path / "images" / "a.jpg")
+    write_image(tmp_path / "elsewhere" / "b.jpg")
+    register_image_files(database, tmp_path, "test-register")
+
+    found = registered_images_under(database, tmp_path / "images")
+
+    assert [image.path for image in found] == [inside.resolve()]

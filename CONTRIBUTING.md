@@ -14,7 +14,7 @@ Each block lives in its own package, so parallel branches touch different files.
 | `camera/` | **shared** | camera model (Metashape convention), undistortion, image outline |
 | `reference/` | A | reference overlap from camera poses (Mermaid) |
 | `overlap/` | A | feature-based pairwise overlap; dedup and extraction to come |
-| `cleaning/`, `tracking/` | B | masks, tracks (to create) |
+| `tracking/` | B | tracks (to create); `cleaning/` (masks) is set aside in `archive/` |
 | `ingestion/`, `targets/`, `export/` | C | readers, targets and GSD, iFDO (to create) |
 
 Create your package (and `tests/<package>/`) in your own branch when you start. Detectors
