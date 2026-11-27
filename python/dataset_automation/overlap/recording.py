@@ -113,6 +113,25 @@ def write_displacements(
         yield overlap
 
 
+def read_view_angles(
+    file: TextIO, image_ids: Sequence[int]
+) -> dict[tuple[int, int], float]:
+    """Angle between the two views of each pair of a file written by `write_displacements`,
+    keyed by (lower position, higher position) in `image_ids`. Unknown angles and pairs with
+    an image outside `image_ids` are left out."""
+    position = {image_id: index for index, image_id in enumerate(image_ids)}
+    angles: dict[tuple[int, int], float] = {}
+    for row in csv.DictReader(file):
+        first = position.get(int(row["image_a_id"]))
+        second = position.get(int(row["image_b_id"]))
+        if first is None or second is None or not row["triangulation_angle_deg"]:
+            continue
+        angles[min(first, second), max(first, second)] = float(
+            row["triangulation_angle_deg"]
+        )
+    return angles
+
+
 def _text(number: float | None) -> str:
     return "" if number is None else f"{number:.4f}"
 

@@ -9,8 +9,9 @@ From a folder of images, with no pose and no position:
 
 1. measures how much each image overlaps the ones that follow it, and answers "unknown" rather
    than a number it cannot support;
-2. selects the images to keep for a chosen overlap, and draws the curve of images removed
-   against that overlap;
+2. selects the images to keep, for a chosen overlap between kept neighbours or for a chosen
+   number of kept images that must still see each image, and draws the curve of images
+   removed against that setting;
 3. with a camera calibration, measures how far the camera moved between two images, as an
    angle;
 4. proposes, for each image, the far-apart images that look like it: candidates for loop
@@ -24,6 +25,7 @@ parameters and the version of the code.
 ```sh
 uv run python scripts/overlap/run_sequential.py <folder> --register   # overlaps, ~10 min for 1,244 images
 uv run python scripts/overlap/select_images.py --overlap 0.80         # images to keep + curve, 1 s
+uv run python scripts/overlap/select_images.py --min-views 5          # the other rule, reads the loop closures
 uv run python scripts/overlap/find_duplicates.py --threshold 0.95     # near-copies, 1 s
 uv run python scripts/overlap/find_loops.py <folder>                  # loop closures, ~25 min for 1,244 images
 ```
@@ -75,6 +77,9 @@ ones being where a diver passes in front of the camera.
 - **A revisit is almost never the same view again.** Between survey lines, 91 % of the revisits
   are seen 10° apart or more. They are the wide baselines a reconstruction needs, not
   duplicates to remove.
+- **Loop closures do not let more images go.** A rule asking that every image stays seen by k
+  kept images keeps 15 to 20 points more of the rim than the overlap rule for the same number
+  of images, with or without the loops; depth noise still follows the number of images.
 - **Loop closures are feasible from the images alone**: about a minute to propose, 20 min to confirm, for
   1,244 images instead of a day for all pairs.
 - **Identical target plates trap the matching.** Two filters handle it; the second was added
@@ -87,26 +92,26 @@ ones being where a diver passes in front of the camera.
 - **No calibration file format**: the displacement works on Mermaid only, through an option
   named after it.
 - **The judge of 3D quality is a model**, never compared with a real reconstruction.
-- **Loop closures are stored but not used yet**: `find_loops.py` proposes, confirms and
-  records them; the selection does not read them. The check of the stored links against the
-  poses was done by hand and is not in the repository.
+- **The checks of the loop closures and of the selection by support against the poses were
+  done by hand** and are not scripts of the repository.
 - **Sequential numbers predate the last fix** of the inlier spread filter (2026-11-19) and were
   not measured again; the loop closure numbers were, on 2026-11-27.
 - Features are extracted again at every sequential run, and an interrupted run cannot resume.
 
 ## Next
 
-1. A script that reads the stored links back and judges them against the poses.
+The project is down to one person: the plan stops at loop closures and 3D reconstruction.
+
+1. A real reconstruction (COLMAP or Metashape) of the full set and of reduced sets, to check
+   the judge of 3D quality against what a reconstruction gives.
 2. Measure the sequential overlaps again on Mermaid after the last fix.
-3. A selection that uses the links between survey lines: remove an image only where it adds
-   neither coverage nor a new viewpoint.
-4. A calibration format, then the same measurements on a second dataset.
+3. A calibration format, then the same measurements on a second dataset.
 
 ## Where the code is
 
 | Package | Content |
 |---|---|
 | `features/` | SIFT, matching, VLAD image vectors, features on disk |
-| `overlap/` | pairwise overlap, camera displacement, sequential mode, selection, loop candidates |
+| `overlap/` | pairwise overlap, camera displacement, sequential mode, the two selection rules, loop closures |
 | `reference/` | Mermaid poses, footprints, revisits, and the judge of a selection |
 | `scripts/overlap/` | the commands above and the evaluations behind the numbers |

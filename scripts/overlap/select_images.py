@@ -1,17 +1,26 @@
-"""Select the images to keep so that consecutive kept images still overlap enough.
+"""Select the images to keep, by one of two rules.
 
     uv run python scripts/overlap/run_sequential.py data/mermaid/images --register
     uv run python scripts/overlap/select_images.py --overlap 0.80
+    uv run python scripts/overlap/select_images.py --min-views 5
 
-Reads the overlaps already in `pairs` and does no matching, so another threshold takes a
+`--overlap`: consecutive kept images still overlap that much, measured as the share of the
+kept image seen by the next one. `--min-views`: every image stays seen by that many kept
+images; it thins the middle of a well-covered area more and its rim less. With `--min-views`,
+the loop closures of the latest `find_loops.py` run are read too (`--loop-run`, or
+`--no-loops`), and `--angles` takes the displacement files of calibrated runs so that two of
+the views must also be far enough apart:
+
+    uv run python scripts/overlap/select_images.py --min-views 5 \
+        --angles outputs/overlap/run_21/displacements.csv outputs/loops/run_31/displacements.csv
+
+Reads the overlaps already in `pairs` and does no matching, so another setting takes a
 second. Nothing is deleted. Written to `<output>/run_<id>/`:
 
     kept_images.txt   one image path per line, for Metashape or COLMAP
     images.csv        one line per image: kept or removed, and its overlap with the kept image
-    curve.csv, .png   images removed for a range of thresholds
+    curve.csv, .png   images removed for a range of settings
     summary.txt       totals and the parameters used
-
-The overlap compared with the threshold is the share of the kept image seen by the next one.
 
 On Mermaid, `--mermaid-poses data/mermaid/107177.xml` adds an evaluation from the reference
 poses to the summary: the seafloor area a 3D reconstruction can still see with the kept images.
@@ -20,6 +29,7 @@ poses to the summary: the seafloor area a 3D reconstruction can still see with t
 import argparse
 import csv
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 from matplotlib.figure import Figure
@@ -32,10 +42,19 @@ from dataset_automation.overlap.extraction import (
     extraction_curve,
     selection_rows,
 )
+from dataset_automation.overlap.loop_pipeline import MODULE as LOOP_MODULE
+from dataset_automation.overlap.recording import read_view_angles
 from dataset_automation.overlap.stored_pairs import (
     StoredSequence,
     latest_overlap_run,
+    load_mutual_overlaps,
     load_stored_sequence,
+)
+from dataset_automation.overlap.support_selection import (
+    CHAIN_OVERLAP,
+    MIN_ANGLE_DEG,
+    SUPPORT_OVERLAP,
+    select_supported_subset,
 )
 from dataset_automation.reference.evaluation import (
     RIM_M,
@@ -56,6 +75,22 @@ OUTPUT_DIR = Path("outputs/selection")
 MODULE = "selection"
 DEFAULT_OVERLAP = 0.80
 CURVE_THRESHOLDS = (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.60, 0.50)
+CURVE_MIN_VIEWS = (10, 8, 6, 5, 4, 3)
+
+
+@dataclass(frozen=True)
+class Selection:
+    """What a rule decided: the images kept, its curve, and how to report both.
+
+    `setting_label` names the setting the curve varies; `parameters` go to the `runs` table.
+    """
+
+    kept: list[int]
+    curve: list[CurvePoint]
+    chosen_setting: float
+    setting_label: str
+    parameters: dict[str, object]
+    description: str
 
 
 def main() -> None:
@@ -66,21 +101,17 @@ def main() -> None:
     if not sequence.paths:
         raise SystemExit(f"run {overlap_run} has no pair in {arguments.database}")
 
-    image_count, overlaps = len(sequence.paths), sequence.earlier_in_later
-    kept = extract_subset(image_count, overlaps, arguments.overlap)
-    rows = selection_rows(image_count, overlaps, kept)
-    curve = extraction_curve(image_count, overlaps, CURVE_THRESHOLDS)
-
-    run_id = start_run(
-        connection,
-        MODULE,
-        {
-            "overlap_run": overlap_run,
-            "threshold": arguments.overlap,
-            "measure": "earlier_in_later",
-        },
+    selection = (
+        select_by_overlap(sequence, arguments.overlap or DEFAULT_OVERLAP)
+        if arguments.min_views is None
+        else select_by_support(connection, sequence, arguments)
     )
-    summary = summarize(sequence, rows, arguments.overlap, overlap_run, run_id)
+    kept = selection.kept
+    rows = selection_rows(len(sequence.paths), sequence.earlier_in_later, kept)
+    run_id = start_run(
+        connection, MODULE, {"overlap_run": overlap_run, **selection.parameters}
+    )
+    summary = summarize(sequence, rows, selection, overlap_run, run_id)
     if arguments.mermaid_poses is not None:
         summary += evaluate_with_mermaid_poses(
             arguments.mermaid_poses, sequence.paths, kept
@@ -92,8 +123,8 @@ def main() -> None:
         "".join(f"{sequence.paths[position]}\n" for position in kept)
     )
     write_images(run_directory / "images.csv", sequence.paths, rows)
-    write_curve(run_directory / "curve.csv", curve)
-    plot_curve(curve, arguments.overlap).savefig(run_directory / "curve.png", dpi=110)
+    write_curve(run_directory / "curve.csv", selection)
+    plot_curve(selection).savefig(run_directory / "curve.png", dpi=110)
     (run_directory / "summary.txt").write_text(summary)
     print(summary, end="")
     print(f"written to {run_directory}")
@@ -103,7 +134,32 @@ def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--overlap", type=float, default=DEFAULT_OVERLAP)
+    rule = parser.add_mutually_exclusive_group()
+    rule.add_argument(
+        "--overlap",
+        type=float,
+        help=f"overlap kept between consecutive selected images (default {DEFAULT_OVERLAP})",
+    )
+    rule.add_argument(
+        "--min-views",
+        type=int,
+        help="kept images that must still see each image, instead of --overlap",
+    )
+    loops = parser.add_mutually_exclusive_group()
+    loops.add_argument(
+        "--loop-run", type=int, help="find_loops.py run to read (default: latest)"
+    )
+    loops.add_argument(
+        "--no-loops", action="store_true", help="use the neighbours in time only"
+    )
+    parser.add_argument(
+        "--angles",
+        type=Path,
+        nargs="+",
+        default=[],
+        help="displacements.csv of calibrated runs: two views must then be "
+        f"{MIN_ANGLE_DEG:.0f} degrees apart",
+    )
     parser.add_argument(
         "--overlap-run", type=int, help="run that wrote the pairs (default: latest)"
     )
@@ -128,6 +184,89 @@ def requested_or_latest_run(
     return latest
 
 
+def select_by_overlap(sequence: StoredSequence, threshold: float) -> Selection:
+    image_count, overlaps = len(sequence.paths), sequence.earlier_in_later
+    return Selection(
+        kept=extract_subset(image_count, overlaps, threshold),
+        curve=extraction_curve(image_count, overlaps, CURVE_THRESHOLDS),
+        chosen_setting=threshold,
+        setting_label="overlap",
+        parameters={
+            "rule": "overlap",
+            "threshold": threshold,
+            "measure": "earlier_in_later",
+        },
+        description=(
+            f"overlap kept between consecutive selected images: {threshold:.2f}\n"
+            "only neighbours in time are compared: redundancy between survey lines or "
+            "passes is not removed\n"
+        ),
+    )
+
+
+def select_by_support(
+    connection: sqlite3.Connection,
+    sequence: StoredSequence,
+    arguments: argparse.Namespace,
+) -> Selection:
+    image_count = len(sequence.paths)
+    loop_run = (
+        None
+        if arguments.no_loops
+        else arguments.loop_run or latest_overlap_run(connection, LOOP_MODULE)
+    )
+    loops = (
+        {}
+        if loop_run is None
+        else load_mutual_overlaps(connection, RunId(loop_run), sequence.image_ids)
+    )
+    overlaps = sequence.mutual_overlaps | loops
+    angles: dict[tuple[int, int], float] | None = None
+    for angles_path in arguments.angles:
+        with angles_path.open(newline="") as file:
+            angles = (angles or {}) | read_view_angles(file, sequence.image_ids)
+
+    return Selection(
+        kept=select_supported_subset(
+            image_count, overlaps, arguments.min_views, angles
+        ),
+        curve=[
+            CurvePoint(
+                min_views,
+                image_count,
+                len(select_supported_subset(image_count, overlaps, min_views, angles)),
+            )
+            for min_views in CURVE_MIN_VIEWS
+        ],
+        chosen_setting=arguments.min_views,
+        setting_label="min_views",
+        parameters={
+            "rule": "support",
+            "min_views": arguments.min_views,
+            "loop_run": loop_run,
+            "angles": [str(path) for path in arguments.angles],
+            "support_overlap": SUPPORT_OVERLAP,
+            "min_angle_deg": MIN_ANGLE_DEG,
+            "chain_overlap": CHAIN_OVERLAP,
+        },
+        description=(
+            f"kept images that still see each image: at least {arguments.min_views}\n"
+            f"two images see the same place from a mutual overlap of {SUPPORT_OVERLAP}\n"
+            + (
+                "loop closures: none read, neighbours in time only\n"
+                if loop_run is None
+                else f"loop closures: {len(loops)} links of run {loop_run}\n"
+            )
+            + (
+                "angles between views: not read, only the number of views counts\n"
+                if angles is None
+                else f"angles between views: known for {len(angles)} pairs, two views "
+                f"must be {MIN_ANGLE_DEG:.0f} degrees apart\n"
+            )
+        ),
+    )
+
+
 def write_images(
     report_path: Path, paths: list[Path], rows: list[SelectionRow]
 ) -> None:
@@ -147,11 +286,13 @@ def write_images(
             )
 
 
-def write_curve(report_path: Path, curve: list[CurvePoint]) -> None:
+def write_curve(report_path: Path, selection: Selection) -> None:
     with report_path.open("w", newline="") as file:
         writer = csv.writer(file)
-        writer.writerow(["overlap", "images", "kept", "removed", "removed_share"])
-        for point in curve:
+        writer.writerow(
+            [selection.setting_label, "images", "kept", "removed", "removed_share"]
+        )
+        for point in selection.curve:
             writer.writerow(
                 [
                     point.threshold,
@@ -163,18 +304,27 @@ def write_curve(report_path: Path, curve: list[CurvePoint]) -> None:
             )
 
 
-def plot_curve(curve: list[CurvePoint], chosen_overlap: float) -> Figure:
+def plot_curve(selection: Selection) -> Figure:
+    curve = selection.curve
+    by_overlap = selection.setting_label == "overlap"
+    scale = 100 if by_overlap else 1
     figure = Figure(figsize=(7, 4.5))
     axis = figure.add_subplot()
     axis.plot(
-        [100 * point.threshold for point in curve],
+        [scale * point.threshold for point in curve],
         [100 * point.removed_share for point in curve],
         "o-",
     )
-    axis.axvline(100 * chosen_overlap, color="grey", linestyle=":", linewidth=1)
-    # Highest overlap on the left: the curve then reads "removing more" from left to right.
+    axis.axvline(
+        scale * selection.chosen_setting, color="grey", linestyle=":", linewidth=1
+    )
+    # Strictest setting on the left: the curve then reads "removing more" from left to right.
     axis.invert_xaxis()
-    axis.set_xlabel("overlap kept between consecutive selected images (%)")
+    axis.set_xlabel(
+        "overlap kept between consecutive selected images (%)"
+        if by_overlap
+        else "kept images that must still see each image"
+    )
     axis.set_ylabel("images removed (%)")
     axis.set_title(f"Images removed by the selection ({curve[0].image_count} images)")
     axis.grid(alpha=0.3)
@@ -185,26 +335,31 @@ def plot_curve(curve: list[CurvePoint], chosen_overlap: float) -> Figure:
 def summarize(
     sequence: StoredSequence,
     rows: list[SelectionRow],
-    threshold: float,
+    selection: Selection,
     overlap_run: RunId,
     run_id: RunId,
 ) -> str:
     image_count = len(rows)
     kept_count = sum(row.is_kept for row in rows)
     removed = image_count - kept_count
-    weak = count_weak_links(rows, threshold)
+    # The overlap rule promises its threshold between kept neighbours; the other rule
+    # promises only that they still chain.
+    promised = (
+        selection.chosen_setting
+        if selection.setting_label == "overlap"
+        else CHAIN_OVERLAP
+    )
+    weak = count_weak_links(rows, promised)
     compared = len(sequence.earlier_in_later) + sequence.unknown_pair_count
     return (
         f"selection run {run_id}, from the overlaps of run {overlap_run}\n"
-        f"overlap kept between consecutive selected images: {threshold:.2f}\n"
-        f"images: {image_count}\n"
+        + selection.description
+        + f"images: {image_count}\n"
         f"kept: {kept_count}\n"
         f"removed: {removed} ({removed / image_count:.1%})\n"
         f"pairs compared: {compared}, of which unknown: {sequence.unknown_pair_count}\n"
-        f"links between kept images below {threshold:.2f}: {weak.below_threshold}, "
-        f"unknown: {weak.unknown} (the sequence itself lacks the overlap there)\n"
-        "only neighbours in time are compared: redundancy between survey lines or passes "
-        "is not removed\n"
+        f"links between consecutive kept images below {promised:.2f}: "
+        f"{weak.below_threshold}, unknown: {weak.unknown}\n"
     )
 
 
