@@ -743,3 +743,23 @@ and of reduced sets.
 
 Also on 2026-11-27: the project is down to one person and to the overlap engine, loop closures
 and 3D reconstruction. The unused `cleaning/` package moved to `archive/`.
+
+## Getting ready for a real reconstruction (branch `a/reconstruction-prep`, 2026-11-27)
+
+The judge of 3D quality is a model. The check is a reconstruction with COLMAP of the full set
+and of reduced sets, compared on what COLMAP reports and on where it places the cameras.
+Without an NVIDIA card only the sparse reconstruction runs (camera poses and a sparse point
+cloud); the dense one needs CUDA.
+
+Ready before COLMAP is installed, and not yet run against it:
+
+- `scripts/reconstruction/export_colmap_pairs.py`: the images to reconstruct and the pairs to
+  match, from the `pairs` table. For Mermaid, 13,080 pairs (neighbours and loop closures)
+  instead of the 773,000 possible; for the 606 images kept with `--min-views 5`, 2,307 pairs.
+- `scripts/reconstruction/evaluate_colmap_model.py`: cameras placed, and their distance to the
+  reference positions once the reconstruction is brought onto the reference by a similarity
+  (`reconstruction/alignment.py`). Checked on a made-up model only: the reference centres at
+  half scale with 1 cm of noise and one camera moved by 1.5 m come back as a scale of 2.00, a
+  median distance of 3 cm and one camera 3 m away.
+
+The reference poses are Metashape's own reconstruction: agreeing with them is not being exact.

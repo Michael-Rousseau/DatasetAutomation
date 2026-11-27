@@ -56,6 +56,7 @@ python/dataset_automation/
   features/        SIFT and Harris, matching, VLAD image vectors, features on disk
   camera/          camera model (Metashape convention), undistortion
   overlap/         pairwise overlap, camera displacement, sequential mode, selection, loop closures
+  reconstruction/  files exchanged with COLMAP, alignment of a reconstruction on a reference
   reference/       Mermaid reference poses and the judge of a selection (evaluation only)
   storage/         SQLite schema, run traceability, image registration
   _core.pyi        type stub of the Rust extension
