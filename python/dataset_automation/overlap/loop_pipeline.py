@@ -33,6 +33,7 @@ from dataset_automation.storage.database import RunId
 MODULE = "overlap-loops"
 CODEBOOK_SAMPLES_PER_IMAGE = 120
 PROGRESS_EVERY = 100
+PAIR_PROGRESS_EVERY = 500
 
 logger = logging.getLogger(__name__)
 
@@ -175,7 +176,9 @@ def _noting_links(
     measures: Iterable[MeasuredPair], linked: set[int]
 ) -> Iterator[MeasuredPair]:
     """Pass `measures` through, adding to `linked` the positions of the confirmed pairs."""
-    for measure in measures:
+    for count, measure in enumerate(measures, start=1):
         if measure.estimate.unknown_reason is None:
             linked.update((measure.index_a, measure.index_b))
+        if count % PAIR_PROGRESS_EVERY == 0:
+            logger.info("%d pairs matched", count)
         yield measure
