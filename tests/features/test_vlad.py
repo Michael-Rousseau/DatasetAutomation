@@ -1,8 +1,17 @@
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from dataset_automation.features.sift import SiftExtractor
-from dataset_automation.features.vlad import Codebook, root_sift, train_codebook, vlad
+from dataset_automation.features.vlad import (
+    Codebook,
+    load_codebook,
+    root_sift,
+    save_codebook,
+    train_codebook,
+    vlad,
+)
 from tests.features.textures import textured_image
 
 EXTRACTOR = SiftExtractor(scale=1.0)
@@ -88,3 +97,16 @@ def test_same_descriptors_and_seed_give_the_same_codebook(
 def test_rejects_fewer_descriptors_than_words() -> None:
     with pytest.raises(ValueError):
         train_codebook(np.zeros((3, 128), dtype=np.float32), word_count=8)
+
+
+def test_codebook_read_back_gives_the_same_vectors(
+    scenes: tuple[np.ndarray, np.ndarray], codebook: Codebook, tmp_path: Path
+) -> None:
+    descriptors = sift_descriptors(scenes[0])
+
+    save_codebook(tmp_path / "run" / "codebook.npy", codebook)
+    read_back = load_codebook(tmp_path / "run" / "codebook.npy")
+
+    np.testing.assert_array_equal(
+        vlad(descriptors, read_back), vlad(descriptors, codebook)
+    )

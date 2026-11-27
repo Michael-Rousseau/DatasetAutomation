@@ -37,7 +37,7 @@ class SequenceImage:
 
 
 @dataclass(frozen=True)
-class SequentialOverlap:
+class MeasuredPair:
     """`index_a` < `index_b` are positions in capture order, matching the `pairs` table.
 
     `displacement` is None without a calibration: rays are not defined without it.
@@ -49,13 +49,43 @@ class SequentialOverlap:
     displacement: DisplacementEstimate | None = None
 
 
+def measure_pair(
+    index_a: int,
+    image_a: SequenceImage,
+    index_b: int,
+    image_b: SequenceImage,
+    matcher: FeatureMatcher,
+    intrinsics: Intrinsics | None = None,
+    estimate_pair: PairEstimator = estimate_homography_overlap,
+) -> MeasuredPair:
+    """Match two images once, and estimate their overlap and, with `intrinsics`, the camera
+    displacement from the same matches."""
+    matches = matcher.match(image_a.features, image_b.features)
+    estimate = estimate_pair(
+        image_a.features,
+        image_b.features,
+        matches,
+        image_a.size,
+        image_b.size,
+        intrinsics,
+    )
+    displacement = (
+        None
+        if intrinsics is None
+        else estimate_displacement(
+            image_a.features, image_b.features, matches, intrinsics
+        )
+    )
+    return MeasuredPair(index_a, index_b, estimate, displacement)
+
+
 def estimate_sequential_overlaps(
     images: Iterable[SequenceImage],
     neighbour_count: int,
     matcher: FeatureMatcher,
     intrinsics: Intrinsics | None = None,
     estimate_pair: PairEstimator = estimate_homography_overlap,
-) -> Iterator[SequentialOverlap]:
+) -> Iterator[MeasuredPair]:
     """Yield one overlap per pair (i, i + 1 … i + neighbour_count), grouped by second image.
 
     `images` must be in capture order. Unknown overlaps are yielded too, with their reason.
@@ -75,25 +105,11 @@ def _sequential_overlaps(
     matcher: FeatureMatcher,
     intrinsics: Intrinsics | None,
     estimate_pair: PairEstimator,
-) -> Iterator[SequentialOverlap]:
+) -> Iterator[MeasuredPair]:
     previous: deque[tuple[int, SequenceImage]] = deque(maxlen=neighbour_count)
     for index_b, image_b in enumerate(images):
         for index_a, image_a in previous:
-            matches = matcher.match(image_a.features, image_b.features)
-            estimate = estimate_pair(
-                image_a.features,
-                image_b.features,
-                matches,
-                image_a.size,
-                image_b.size,
-                intrinsics,
+            yield measure_pair(
+                index_a, image_a, index_b, image_b, matcher, intrinsics, estimate_pair
             )
-            displacement = (
-                None
-                if intrinsics is None
-                else estimate_displacement(
-                    image_a.features, image_b.features, matches, intrinsics
-                )
-            )
-            yield SequentialOverlap(index_a, index_b, estimate, displacement)
         previous.append((index_b, image_b))
