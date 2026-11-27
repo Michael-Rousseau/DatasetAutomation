@@ -92,8 +92,8 @@ ones being where a diver passes in front of the camera.
 - **No calibration file format**: the displacement works on Mermaid only, through an option
   named after it.
 - **The judge of 3D quality is a model**, never compared with a real reconstruction.
-- **The checks of the loop closures and of the selection by support against the poses were
-  done by hand** and are not scripts of the repository.
+- **The comparison of the selection by support with the other rules was done by hand**; the
+  loop closures are judged by `scripts/overlap/evaluate_loops.py`.
 - **Sequential numbers predate the last fix** of the inlier spread filter (2026-11-19) and were
   not measured again; the loop closure numbers were, on 2026-11-27.
 - Features are extracted again at every sequential run, and an interrupted run cannot resume.
