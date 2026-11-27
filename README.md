@@ -39,6 +39,16 @@ The first two commands match images and are the long ones; the others read their
 `outputs/shared.sqlite`. Nothing is ever deleted: a selection is a list of images to keep.
 Each script documents its options and outputs at the top of its file.
 
+3D view of a Mermaid survey (Open3D, an optional extra): trajectory, cameras, footprints, loop
+links coloured by the angle between the two views, and the images a selection removed.
+
+```sh
+uv sync --extra view
+uv run python scripts/view/show_scene.py --reference-loops     # from the poses alone
+uv run python scripts/view/show_scene.py --selection outputs/selection/run_<id>/images.csv \
+    --database outputs/shared.sqlite --screenshot outputs/view/scene.png
+```
+
 ## Checks (the same ones CI runs on every pull request)
 
 ```sh
@@ -58,6 +68,7 @@ python/dataset_automation/
   overlap/         pairwise overlap, camera displacement, sequential mode, selection, loop closures
   reference/       Mermaid reference poses and the judge of a selection (evaluation only)
   storage/         SQLite schema, run traceability, image registration
+  view/            3D view of a survey (Open3D only in view/render.py)
   _core.pyi        type stub of the Rust extension
 src/               Rust extension, one file per module, imported as dataset_automation._core
 tests/<package>/   tests, mirroring the package layout

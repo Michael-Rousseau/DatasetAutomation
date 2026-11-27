@@ -13,6 +13,11 @@ dependencies = [
     "shapely>=2.1.2",
 ]
 
+[project.optional-dependencies]
+view = [
+    "open3d>=0.20",
+]
+
 [dependency-groups]
 dev = [
     "maturin>=1.9.4,<2",
