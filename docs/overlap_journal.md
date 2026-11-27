@@ -725,9 +725,10 @@ overlap by 0.3. Judged against the poses, for comparable numbers of images:
   thins the middle of the area, seen by many images, and spares the ends of the lines.
 - **The gain is the form of the rule, not the loops.** With the neighbours in time only, 5
   views keep 799 images for 80 % of the rim and ×1.23; with the loops, 6 views keep 699 for
-  80 % and ×1.31: about the same curve. What the loops add: with 3 views the kept images
-  split into 6 groups without them (judged from reference overlaps of 0.5); with them the
-  split starts later, at 4 views.
+  80 % and ×1.31: about the same curve. What the loops may add is a kept set that
+  holds together: around 550 images, it is in 6 groups without them (566 images) and in 1 or
+  2 with them (606 and 520 images), groups being judged from reference overlaps of 0.5. At
+  439 images it is in 6 groups with them too.
 
 Reservations: the rule uses the criterion of the judge (number of views, 10°), so part of its
 advantage is by construction; one dataset; nothing tuned; differences of 0.05 in noise are not
