@@ -19,7 +19,6 @@ import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 
-from dataset_automation.cleaning.pipeline import images_under
 from dataset_automation.features.matching import RatioTestMatcher
 from dataset_automation.features.sift import SiftExtractor
 from dataset_automation.overlap.pairwise import (
@@ -36,7 +35,10 @@ from dataset_automation.overlap.pipeline import (
 )
 from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
 from dataset_automation.storage.database import open_database, start_run
-from dataset_automation.storage.images import register_image_files
+from dataset_automation.storage.images import (
+    register_image_files,
+    registered_images_under,
+)
 
 DATABASE = Path("outputs/shared.sqlite")
 OUTPUT_DIR = Path("outputs/overlap")
@@ -105,7 +107,7 @@ def sequence_files(
     files = sorted(
         (
             SequenceFile(image.image_id, image.path)
-            for image in images_under(connection, image_root)
+            for image in registered_images_under(connection, image_root)
         ),
         key=lambda file: file.path,
     )
