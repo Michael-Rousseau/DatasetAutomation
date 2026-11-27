@@ -105,7 +105,8 @@ ones being where a diver passes in front of the camera.
 
 The project is down to one person: the plan stops at loop closures and 3D reconstruction.
 
-1. Why the cameras between images 780 and 806 are badly placed in every reconstruction.
+1. A selection that keeps more images where matches are few: the cameras badly placed in
+   every reconstruction are where the camera flies highest and the images are hazy.
 2. Measure the sequential overlaps again on Mermaid after the last fix.
 3. A calibration format, then the same measurements on a second dataset.
 
