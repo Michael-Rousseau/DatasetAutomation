@@ -678,7 +678,8 @@ Decisions:
   vectors. The descriptors of 1,244 images do not fit in memory together.
 
 First full run on Mermaid (run 31, 2026-11-27, 20 min, features already on disk), judged
-against the poses by a one-off check that is not in the repository:
+against the poses by `scripts/overlap/evaluate_loops.py` (about 15 s, added afterwards: it
+reproduces every line of this table):
 
 | | |
 |---|---|
