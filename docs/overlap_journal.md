@@ -677,6 +677,22 @@ Decisions:
 - **Two readings of the features**: a sample of each image for the codebook, then the
   vectors. The descriptors of 1,244 images do not fit in memory together.
 
-Not measured: the script has run on synthetic images only (a camera going along a line and
-back). The numbers of step 3 above come from the one-off run of 2026-11-19, before the fix of
-the inlier spread.
+First full run on Mermaid (run 31, 2026-11-27, 20 min, features already on disk), judged
+against the poses by a one-off check that is not in the repository:
+
+| | |
+|---|---|
+| Candidate pairs (10 per image, more than 30 images apart) | 10,916 |
+| Confirmed | 7,154 |
+| Confirmed pairs whose footprints do not overlap at all (false links) | 0 |
+| Unconfirmed pairs whose footprints do not overlap | 982 |
+| Unconfirmed pairs that are true revisits (mutual overlap of 0.5 or more), missed | 546 |
+| Images linked to a far image | 1,188 of 1,244 (95 %) |
+| Mutual overlap of a confirmed pair against the reference | off by 0.056 in median |
+| … off by more than 0.2 | 164 pairs (2.3 %), 6 % of those with fewer than 30 inliers |
+| … off by more than 0.4 | 5 pairs |
+| Angle between the two views of a confirmed pair (reference) | 17° in median, 74 % at 10° or more |
+
+This is the first measure after the fix of the inlier spread. The pair 320–831 (two identical
+target plates) is proposed again and no longer confirmed. A link can be right while its overlap
+is wrong: images 0 and 65 are given 0.95 where the reference says 0.17.

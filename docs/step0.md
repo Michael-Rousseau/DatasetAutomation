@@ -71,9 +71,9 @@ selection, loop closure candidates.
 
 Next:
 
-1. Run `scripts/overlap/find_loops.py` on Mermaid (it has only run on synthetic images), and
-   measure everything again after the last fix of the inlier spread filter.
-2. Read the stored links back and judge them against the poses.
+1. A script that reads the stored loop closures back and judges them against the poses.
+2. Measure the sequential overlaps again on Mermaid after the last fix of the inlier spread
+   filter.
 3. A selection that uses the links between survey lines: remove an image only where it adds
    neither coverage nor a new viewpoint.
 4. A calibration file format, then the same measurements on a second dataset.
