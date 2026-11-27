@@ -815,3 +815,17 @@ Limits: one run per set; the distance is the agreement between COLMAP and Metash
 error; nothing is said about the dense surface, where a loss of depth precision would show.
 The times of the third set (51 min, 157 min and 9 min) include a stretch where the machine
 was paused or asleep and are not to be used; the full set of 1,244 images was not run.
+
+### Why images 780 to 806 are badly placed (2026-11-27)
+
+The camera is at its highest of the whole dive there: 6.6 to 6.9 m above the seafloor plane
+from image 792 to 801, for a median of 4.0 m. The images are hazy, flat in contrast and noisy:
+the water between the camera and the seafloor is thicker by half. Between neighbours the
+overlap stays high (0.60 to 0.97) but rests on few points: about 90 inliers around image 794,
+against more than 1,000 twenty images earlier. Image 795, which no reconstruction of a
+reduced set places, has 3 loop closures where its neighbours have 6 to 10.
+
+So this is a property of the survey, not of a selection, and it argues for keeping more images
+where the matches are few: neither selection rule looks at the number of inliers. Not checked:
+whether the reference poses themselves are less reliable there, which would inflate the
+distances as much as a bad reconstruction would.
