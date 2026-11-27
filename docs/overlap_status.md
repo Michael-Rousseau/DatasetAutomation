@@ -25,10 +25,13 @@ parameters and the version of the code.
 uv run python scripts/overlap/run_sequential.py <folder> --register   # overlaps, ~10 min for 1,244 images
 uv run python scripts/overlap/select_images.py --overlap 0.80         # images to keep + curve, 1 s
 uv run python scripts/overlap/find_duplicates.py --threshold 0.95     # near-copies, 1 s
+uv run python scripts/overlap/find_loops.py <folder>                  # loop closures, ~25 min for 1,244 images
 ```
 
-The first command is the only long one. The other two read its result from
-`outputs/shared.sqlite`, so another threshold costs nothing. `select_images.py` writes
+The first and the last commands are the long ones. The two in between read the result of the
+first from `outputs/shared.sqlite`, so another threshold costs nothing. `find_loops.py` writes
+its links to the same `pairs` table under a run of its own, and keeps the features of each
+image on disk, so a second run does not extract them again. `select_images.py` writes
 `kept_images.txt`, `images.csv`, `curve.csv`, `curve.png` and `summary.txt`.
 
 On Mermaid only, where a calibration and reference poses exist:
@@ -54,7 +57,8 @@ On Mermaid (1,244 images of a diver's survey grid), against the reference poses.
 | What that selection costs | reconstructible area intact inside, 28 % of a 1 m rim lost; depth noise ×1.22 |
 | Camera displacement between neighbours | known for all pairs, off by 0.13° in median for 3.6° |
 | Far images proposed by resemblance (10 per image) | nearly half are true revisits; 85 % of the images get one |
-| Proposed pairs confirmed by matching | 96 % of the images linked to another line or pass; 1 false link in 982 candidates that do not overlap |
+| Proposed pairs confirmed by matching | 95 % of the images linked to another line or pass; no false link among 982 candidates that do not overlap |
+| Overlap of a confirmed far pair | off by 0.056 in median, by more than 0.2 for 2 % |
 
 On a second dataset without poses or calibration (`data_test_roman/data/set_003`, 328 images)
 the first two commands run unchanged: 98 % of the neighbours are estimated, the only unknown
@@ -71,7 +75,7 @@ ones being where a diver passes in front of the camera.
 - **A revisit is almost never the same view again.** Between survey lines, 91 % of the revisits
   are seen 10° apart or more. They are the wide baselines a reconstruction needs, not
   duplicates to remove.
-- **Loop closures are feasible from the images alone**: 22 s to propose, 25 min to confirm, for
+- **Loop closures are feasible from the images alone**: about a minute to propose, 20 min to confirm, for
   1,244 images instead of a day for all pairs.
 - **Identical target plates trap the matching.** Two filters handle it; the second was added
   after a false link got through.
@@ -83,16 +87,17 @@ ones being where a diver passes in front of the camera.
 - **No calibration file format**: the displacement works on Mermaid only, through an option
   named after it.
 - **The judge of 3D quality is a model**, never compared with a real reconstruction.
-- **Loop closures are not in the pipeline yet**: proposing is in the library, confirming and
-  storing are not.
-- **Numbers predate the last fix** of the inlier spread filter (2026-11-19) and were not
-  measured again; a sample suggests few correct pairs are affected.
+- **Loop closures are stored but not used yet**: `find_loops.py` proposes, confirms and
+  records them; the selection does not read them. The check of the stored links against the
+  poses was done by hand and is not in the repository.
+- **Sequential numbers predate the last fix** of the inlier spread filter (2026-11-19) and were
+  not measured again; the loop closure numbers were, on 2026-11-27.
 - Features are extracted again at every sequential run, and an interrupted run cannot resume.
 
 ## Next
 
-1. Confirm and store the loop closure candidates in the pipeline, with a script.
-2. Measure everything again on Mermaid after the last fix.
+1. A script that reads the stored links back and judges them against the poses.
+2. Measure the sequential overlaps again on Mermaid after the last fix.
 3. A selection that uses the links between survey lines: remove an image only where it adds
    neither coverage nor a new viewpoint.
 4. A calibration format, then the same measurements on a second dataset.

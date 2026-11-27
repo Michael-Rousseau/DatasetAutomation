@@ -18,7 +18,7 @@ from dataset_automation.overlap.recording import (
     write_displacements,
 )
 from dataset_automation.overlap.sequential import (
-    SequentialOverlap,
+    MeasuredPair,
     estimate_sequential_overlaps,
 )
 from dataset_automation.storage.database import RunId, open_database, start_run
@@ -72,7 +72,7 @@ def test_stores_a_known_overlap_with_its_run(
         database,
         run_id,
         [first, second],
-        [SequentialOverlap(0, 1, known(0.9, 0.6, 0.5))],
+        [MeasuredPair(0, 1, known(0.9, 0.6, 0.5))],
     )
 
     assert database.execute(PAIR_COLUMNS).fetchall() == [
@@ -89,7 +89,7 @@ def test_stores_an_unknown_overlap_as_null_with_its_inlier_count(
         database,
         run_id,
         image_ids,
-        [SequentialOverlap(0, 1, unknown(UnknownReason.TOO_FEW_INLIERS, 6))],
+        [MeasuredPair(0, 1, unknown(UnknownReason.TOO_FEW_INLIERS, 6))],
     )
 
     (row,) = database.execute(PAIR_COLUMNS).fetchall()
@@ -105,7 +105,7 @@ def test_swaps_directional_overlaps_when_ids_do_not_follow_capture_order(
         database,
         run_id,
         [higher_id, lower_id],
-        [SequentialOverlap(0, 1, known(0.9, 0.6, 0.5))],
+        [MeasuredPair(0, 1, known(0.9, 0.6, 0.5))],
     )
 
     (row,) = database.execute(PAIR_COLUMNS).fetchall()
@@ -123,10 +123,10 @@ def test_reports_unknown_overlaps_by_reason(
         run_id,
         image_ids,
         [
-            SequentialOverlap(0, 1, known(0.9, 0.9, 0.8)),
-            SequentialOverlap(1, 2, unknown(UnknownReason.TOO_FEW_INLIERS, 6)),
-            SequentialOverlap(2, 3, unknown(UnknownReason.TOO_FEW_INLIERS, 3)),
-            SequentialOverlap(0, 2, unknown(UnknownReason.IMPLAUSIBLE_HOMOGRAPHY, 30)),
+            MeasuredPair(0, 1, known(0.9, 0.9, 0.8)),
+            MeasuredPair(1, 2, unknown(UnknownReason.TOO_FEW_INLIERS, 6)),
+            MeasuredPair(2, 3, unknown(UnknownReason.TOO_FEW_INLIERS, 3)),
+            MeasuredPair(0, 2, unknown(UnknownReason.IMPLAUSIBLE_HOMOGRAPHY, 30)),
         ],
     )
 
@@ -145,8 +145,8 @@ def test_keeps_pairs_recorded_before_an_interruption(
     image_ids = register_images(database, run_id, 3)
     database.commit()
 
-    def interrupted() -> Iterator[SequentialOverlap]:
-        yield SequentialOverlap(0, 1, known(0.9, 0.9, 0.8))
+    def interrupted() -> Iterator[MeasuredPair]:
+        yield MeasuredPair(0, 1, known(0.9, 0.9, 0.8))
         raise KeyboardInterrupt
 
     with pytest.raises(KeyboardInterrupt):
@@ -180,9 +180,9 @@ def test_displacement_rows_follow_capture_order_and_leave_unknowns_empty() -> No
         3, 0, None, None, None, UnknownReason.TOO_FEW_MATCHES
     )
     overlaps = [
-        SequentialOverlap(0, 1, known(0.9, 0.9, 0.8), measured),
-        SequentialOverlap(1, 2, known(0.9, 0.9, 0.8), not_measured),
-        SequentialOverlap(0, 2, known(0.9, 0.9, 0.8), None),
+        MeasuredPair(0, 1, known(0.9, 0.9, 0.8), measured),
+        MeasuredPair(1, 2, known(0.9, 0.9, 0.8), not_measured),
+        MeasuredPair(0, 2, known(0.9, 0.9, 0.8), None),
     ]
     file = io.StringIO()
 

@@ -9,7 +9,7 @@ from enum import Enum
 from typing import TextIO
 
 from dataset_automation.overlap.pairwise import UnknownReason
-from dataset_automation.overlap.sequential import SequentialOverlap
+from dataset_automation.overlap.sequential import MeasuredPair
 from dataset_automation.storage.database import RunId
 
 DISPLACEMENT_COLUMNS = (
@@ -34,7 +34,7 @@ def record_sequential_overlaps(
     connection: sqlite3.Connection,
     run_id: RunId,
     image_ids: Sequence[int],
-    overlaps: Iterable[SequentialOverlap],
+    overlaps: Iterable[MeasuredPair],
 ) -> RecordingReport:
     """`image_ids[i]` is the `images.id` of the image at position i in capture order.
 
@@ -61,7 +61,7 @@ def record_sequential_overlaps(
 
 
 def _pair_row(
-    overlap: SequentialOverlap, image_ids: Sequence[int], run_id: RunId
+    overlap: MeasuredPair, image_ids: Sequence[int], run_id: RunId
 ) -> tuple[int, int, str, int, float | None, float | None, float | None, RunId]:
     estimate = overlap.estimate
     first_id, second_id = image_ids[overlap.index_a], image_ids[overlap.index_b]
@@ -84,8 +84,8 @@ def _pair_row(
 
 
 def write_displacements(
-    file: TextIO, image_ids: Sequence[int], overlaps: Iterable[SequentialOverlap]
-) -> Iterator[SequentialOverlap]:
+    file: TextIO, image_ids: Sequence[int], overlaps: Iterable[MeasuredPair]
+) -> Iterator[MeasuredPair]:
     """Pass `overlaps` through, writing the displacement of each pair to `file` as CSV.
 
     The `pairs` table has no column for the displacement, and adding one changes the shared

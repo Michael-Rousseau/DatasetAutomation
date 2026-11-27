@@ -652,3 +652,47 @@ settings: 1,499 s (25 min), 0.14 s per pair. Poses are used only to judge.
 - Limits: one dataset; one setting of the descriptor; the 30-image gap and k = 10 are choices;
   wide baselines are under-represented among the candidates; throwaway scripts, nothing in the
   library yet.
+
+## Loop closures in the pipeline (branch `a/loop-verification`, 2026-11-27)
+
+`scripts/overlap/find_loops.py` chains what steps 2 and 3 did by hand: features read from
+disk, codebook, one vector per image, far candidates, confirmation by matching, recording.
+
+Decisions:
+
+- **One measure for both modes.** A candidate goes through `measure_pair`, the function the
+  sequential mode uses, and gives a `MeasuredPair` (formerly `SequentialOverlap`): the code
+  writing to `pairs` and to the displacements file is shared, not copied.
+- **A run of its own**, with the module name `overlap-loops`. `select_images.py` reads the
+  latest run of module `overlap`: a loop run under the same name would have replaced the
+  sequential overlaps it expects.
+- **Unconfirmed candidates are stored too**, as unknown: "compared, could not tell" stays
+  different from "never compared".
+- **Features on disk, with the image size.** Comparing two images needs their frames, and the
+  cache did not hold them. Files written before are completed at first use by reading the
+  image again, without extracting.
+- **One cache folder per image folder and extractor setting**, since the cache is keyed by file
+  name. Two files with the same name in one run are refused. The Mermaid cache made before
+  this script is `outputs/cache/sift_defaults`: pass it with `--cache`.
+- **Two readings of the features**: a sample of each image for the codebook, then the
+  vectors. The descriptors of 1,244 images do not fit in memory together.
+
+First full run on Mermaid (run 31, 2026-11-27, 20 min, features already on disk), judged
+against the poses by a one-off check that is not in the repository:
+
+| | |
+|---|---|
+| Candidate pairs (10 per image, more than 30 images apart) | 10,916 |
+| Confirmed | 7,154 |
+| Confirmed pairs whose footprints do not overlap at all (false links) | 0 |
+| Unconfirmed pairs whose footprints do not overlap | 982 |
+| Unconfirmed pairs that are true revisits (mutual overlap of 0.5 or more), missed | 546 |
+| Images linked to a far image | 1,188 of 1,244 (95 %) |
+| Mutual overlap of a confirmed pair against the reference | off by 0.056 in median |
+| … off by more than 0.2 | 164 pairs (2.3 %), 6 % of those with fewer than 30 inliers |
+| … off by more than 0.4 | 5 pairs |
+| Angle between the two views of a confirmed pair (reference) | 17° in median, 74 % at 10° or more |
+
+This is the first measure after the fix of the inlier spread. The pair 320–831 (two identical
+target plates) is proposed again and no longer confirmed. A link can be right while its overlap
+is wrong: images 0 and 65 are given 0.95 where the reference says 0.17.

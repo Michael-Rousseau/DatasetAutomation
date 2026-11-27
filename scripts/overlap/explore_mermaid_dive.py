@@ -306,7 +306,7 @@ def reference_overlap(footprints: np.ndarray, a: int, b: int) -> float:
 
 
 def cached_features(path: Path) -> Features:
-    return load_or_extract(path, CACHE_DIR, SiftExtractor())
+    return load_or_extract(path, CACHE_DIR, SiftExtractor()).features
 
 
 def images_in_capture_order() -> list[Path]:

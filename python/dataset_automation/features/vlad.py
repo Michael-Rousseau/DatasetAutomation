@@ -10,6 +10,7 @@ Changing this module affects persons A, B and C: it needs a review from all thre
 """
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import cv2
 import numpy as np
@@ -28,6 +29,16 @@ class Codebook:
     """
 
     words: np.ndarray
+
+
+def save_codebook(path: Path, codebook: Codebook) -> None:
+    """Kept next to a run: its image vectors cannot be compared or rebuilt without it."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    np.save(path, codebook.words)
+
+
+def load_codebook(path: Path) -> Codebook:
+    return Codebook(words=np.load(path))
 
 
 def root_sift(descriptors: np.ndarray) -> np.ndarray:
