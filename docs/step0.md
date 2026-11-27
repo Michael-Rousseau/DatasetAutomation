@@ -43,7 +43,6 @@ I want to understand everything we build. My Rust level: intermediate. My Python
 - **Python reference first, Rust port second**, with a test proving both give the same results (within tolerance).
 - **Unknown rather than invented**: an estimate that cannot be supported is stored as unknown, with its reason.
 - No computation of several minutes without my go; never two heavy runs at once.
-- Shared packages (`features/`, `storage/`, `camera/`) and new dependencies need the agreement of B and C.
 - **Pure functions**: clear inputs and outputs, no global state.
 - Data lives in `data/mermaid/`, is **gitignored**, and is never modified.
 - Don't install anything globally or download large files without asking me first.
@@ -69,17 +68,16 @@ layer (SIFT, matching), pairwise overlap, sequential overlap into the shared dat
 deduplication, selection with its curve, camera displacement, a pose-based judge of a
 selection, loop closure candidates.
 
-Next:
+Next (the project is down to one person since 2026-11-27, and to this plan):
 
-1. A script that reads the stored loop closures back and judges them against the poses.
+1. A real 3D reconstruction (COLMAP or Metashape) of the full set and of reduced sets, to
+   check the judge of 3D quality.
 2. Measure the sequential overlaps again on Mermaid after the last fix of the inlier spread
    filter.
-3. A selection that uses the links between survey lines: remove an image only where it adds
-   neither coverage nor a new viewpoint.
-4. A calibration file format, then the same measurements on a second dataset.
+3. A calibration file format, then the same measurements on a second dataset.
 
-Later, not scheduled: targets, the Open3D viewer, the Rust port of the slow parts (the Rust
-extension is still the "hello world" of the skeleton).
+Set aside: targets, masks (`archive/cleaning/`), the Open3D viewer, the Rust port of the slow
+parts (the Rust extension is still the "hello world" of the skeleton).
 
 ## Decisions and findings
 

@@ -14,6 +14,7 @@ from dataset_automation.overlap.displacement import (
 from dataset_automation.overlap.pairwise import PairOverlapEstimate, UnknownReason
 from dataset_automation.overlap.recording import (
     DISPLACEMENT_COLUMNS,
+    read_view_angles,
     record_sequential_overlaps,
     write_displacements,
 )
@@ -194,3 +195,15 @@ def test_displacement_rows_follow_capture_order_and_leave_unknowns_empty() -> No
         "30,10,4.2500,1.5000,essential_matrix,150,",
         "10,20,,,,0,too_few_matches",
     ]
+
+
+def test_view_angles_are_read_back_by_position() -> None:
+    file = io.StringIO(
+        ",".join(DISPLACEMENT_COLUMNS)
+        + "\n30,10,4.2500,1.5000,essential_matrix,150,\n"
+        + "10,20,,,,0,too_few_matches\n"
+        + "20,99,12.0000,0.5000,essential_matrix,80,\n"
+    )
+
+    # Image 99 is not in the sequence; the pair 10-20 has no known angle.
+    assert read_view_angles(file, [10, 20, 30]) == {(0, 2): 4.25}

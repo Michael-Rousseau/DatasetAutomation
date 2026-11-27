@@ -5,6 +5,7 @@ import pytest
 
 from dataset_automation.overlap.stored_pairs import (
     latest_overlap_run,
+    load_mutual_overlaps,
     load_stored_sequence,
 )
 from dataset_automation.storage.database import RunId, open_database, start_run
@@ -60,6 +61,7 @@ def test_keys_overlaps_by_position_in_path_order(
         Path("dive/0002.jpg"),
         Path("dive/0003.jpg"),
     ]
+    assert sequence.image_ids == [first, second, third]
     assert sequence.mutual_overlaps == {(0, 1): 0.8, (1, 2): 0.7}
     assert sequence.unknown_pair_count == 0
 
@@ -115,3 +117,32 @@ def test_latest_overlap_run_ignores_other_modules(database: sqlite3.Connection) 
     start_run(database, "deduplication", {}, code_version="test")
 
     assert latest_overlap_run(database) == overlap_run
+
+
+def test_overlaps_of_another_run_are_keyed_by_the_positions_asked_for(
+    database: sqlite3.Connection, run_id: RunId
+) -> None:
+    first = register(database, run_id, "dive/0001.jpg")
+    second = register(database, run_id, "dive/0002.jpg")
+    third = register(database, run_id, "dive/0003.jpg")
+    elsewhere = register(database, run_id, "other_dive/0001.jpg")
+    loops = start_run(database, "overlap-loops", {}, code_version="test")
+    store_pair(database, loops, (first, third), (0.6, 0.7))
+    store_pair(database, loops, (first, second), None)
+    store_pair(database, loops, (second, elsewhere), (0.9, 0.9))
+
+    # Capture order given by the caller, here the reverse of the database ids.
+    overlaps = load_mutual_overlaps(database, loops, [third, second, first])
+
+    assert overlaps == {(0, 2): 0.6}
+
+
+def test_latest_run_of_another_module(
+    database: sqlite3.Connection, run_id: RunId
+) -> None:
+    assert latest_overlap_run(database, "overlap-loops") is None
+
+    loops = start_run(database, "overlap-loops", {}, code_version="test")
+    start_run(database, "overlap", {}, code_version="test")
+
+    assert latest_overlap_run(database, "overlap-loops") == loops

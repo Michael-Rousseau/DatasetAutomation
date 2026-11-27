@@ -1,6 +1,7 @@
 """Read the overlaps of a run back from the shared `pairs` table."""
 
 import sqlite3
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -13,19 +14,24 @@ from dataset_automation.storage.database import RunId
 class StoredSequence:
     """Images of a run in capture order, and their known overlaps keyed by positions.
 
-    Keys are (earlier position, later position). `earlier_in_later` is the share of the
+    `image_ids[i]` is the `images.id` of the image at position i. Keys are (earlier position,
+    later position). `earlier_in_later` is the share of the
     earlier image seen by the later one; `mutual_overlaps` is the smaller of both directions.
     """
 
     paths: list[Path]
+    image_ids: list[int]
     earlier_in_later: dict[tuple[int, int], float]
     mutual_overlaps: dict[tuple[int, int], float]
     unknown_pair_count: int
 
 
-def latest_overlap_run(connection: sqlite3.Connection) -> RunId | None:
+def latest_overlap_run(
+    connection: sqlite3.Connection, module: str = MODULE
+) -> RunId | None:
+    """Latest run of `module`: the sequential overlaps by default."""
     row = connection.execute(
-        "SELECT MAX(id) FROM runs WHERE module = ?", (MODULE,)
+        "SELECT MAX(id) FROM runs WHERE module = ?", (module,)
     ).fetchone()
     return None if row[0] is None else RunId(row[0])
 
@@ -64,7 +70,33 @@ def load_stored_sequence(
         mutual_overlaps[position_a, position_b] = mutual_overlap(a_in_b, b_in_a)
     return StoredSequence(
         paths=[Path(path) for _, path in images],
+        image_ids=[image_id for image_id, _ in images],
         earlier_in_later=earlier_in_later,
         mutual_overlaps=mutual_overlaps,
         unknown_pair_count=unknown_pair_count,
     )
+
+
+def load_mutual_overlaps(
+    connection: sqlite3.Connection, run_id: RunId, image_ids: Sequence[int]
+) -> dict[tuple[int, int], float]:
+    """Known mutual overlaps of a run, keyed by (lower position, higher position) in
+    `image_ids`. Pairs with an image outside `image_ids` are left out: the run may cover
+    other images than the sequence they are read for."""
+    position = {image_id: index for index, image_id in enumerate(image_ids)}
+    pairs = connection.execute(
+        "SELECT image_a_id, image_b_id, overlap_a_in_b, overlap_b_in_a FROM pairs "
+        "WHERE run_id = ? AND overlap_a_in_b IS NOT NULL AND overlap_b_in_a IS NOT NULL",
+        (run_id,),
+    )
+    return {
+        _ordered(position[image_a_id], position[image_b_id]): mutual_overlap(
+            a_in_b, b_in_a
+        )
+        for image_a_id, image_b_id, a_in_b, b_in_a in pairs
+        if image_a_id in position and image_b_id in position
+    }
+
+
+def _ordered(first: int, second: int) -> tuple[int, int]:
+    return (first, second) if first < second else (second, first)

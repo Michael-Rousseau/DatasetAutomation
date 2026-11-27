@@ -696,3 +696,50 @@ against the poses by a one-off check that is not in the repository:
 This is the first measure after the fix of the inlier spread. The pair 320–831 (two identical
 target plates) is proposed again and no longer confirmed. A link can be right while its overlap
 is wrong: images 0 and 65 are given 0.95 where the reference says 0.17.
+
+## A selection by support, and what loop closures add to it (branch `a/support-selection`, 2026-11-27)
+
+Question: with the loop closures stored, can more images be removed for the same quality?
+Answer on Mermaid: no. A new rule does better than the overlap rule on the rim of the area,
+and it owes little to the loop closures.
+
+The rule (`overlap/support_selection.py`, `select_images.py --min-views`): an image may be
+removed when it, and every image that overlaps it by 0.5, stays seen by `min_views` kept
+images, two of them 10° apart when angles are known; the kept images around it must still
+overlap by 0.3. Judged against the poses, for comparable numbers of images:
+
+| Rule | Kept | Inside | Rim | Depth noise (median) |
+|---|---|---|---|---|
+| support, 8 views, with loops | 849 | 100 % | 91 % | ×1.17 |
+| overlap ≥ 0.80 | 859 | 99.9 % | 72 % | ×1.22 |
+| support, 5 views, with loops | 606 | 99.8 % | 74 % | ×1.42 |
+| 1 image in 2 | 622 | 100 % | 66 % | ×1.42 |
+| overlap ≥ 0.70 | 562 | 99.5 % | 48 % | ×1.56 |
+| support, 3 views, with loops | 439 | 99.4 % | 61 % | ×1.64 |
+| 1 image in 3 | 415 | 99.8 % | 51 % | ×1.75 |
+| overlap ≥ 0.60 | 397 | 98.3 % | 30 % | ×1.84 |
+
+- **Depth noise still follows the number of images.** To stay at the noise of the overlap rule
+  at 0.80, about as many images must be kept. No removal comes for free.
+- **For the same number of images the rim is better kept**, by 15 to 20 points: the rule
+  thins the middle of the area, seen by many images, and spares the ends of the lines.
+- **The gain is the form of the rule, not the loops.** With the neighbours in time only, 5
+  views keep 799 images for 80 % of the rim and ×1.23; with the loops, 6 views keep 699 for
+  80 % and ×1.31: about the same curve. What the loops may add is a kept set that
+  holds together: around 550 images, it is in 6 groups without them (566 images) and in 1 or
+  2 with them (606 and 520 images), groups being judged from reference overlaps of 0.5. At
+  439 images it is in 6 groups with them too.
+
+Reservations: the rule uses the criterion of the judge (number of views, 10°), so part of its
+advantage is by construction; one dataset; nothing tuned; differences of 0.05 in noise are not
+to be read. The kept sequence chains less well in time than with the overlap rule (44
+consecutive kept images below 0.5 of reference overlap at 606 images, against 15). The
+comparison table came from a one-off script; `select_images.py --min-views 5 --loop-run 31
+--angles … --mermaid-poses …` reproduces its lines one at a time.
+
+Decision: both rules stay in `select_images.py`. What neither the judge nor more rules can
+settle is whether the model of quality is right: next is a real reconstruction of the full set
+and of reduced sets.
+
+Also on 2026-11-27: the project is down to one person and to the overlap engine, loop closures
+and 3D reconstruction. The unused `cleaning/` package moved to `archive/`.
