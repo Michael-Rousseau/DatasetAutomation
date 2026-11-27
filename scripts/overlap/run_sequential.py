@@ -15,6 +15,7 @@ each pair to `<output>/run_<id>/displacements.csv`.
 
 import argparse
 import logging
+import sqlite3
 from dataclasses import asdict
 from pathlib import Path
 
@@ -25,10 +26,12 @@ from dataset_automation.overlap.pairwise import (
     MIN_INLIER_SPREAD,
     MIN_INLIERS,
     RANSAC_THRESHOLD_PX,
+    SPREAD_INLIER_SHARE,
 )
 from dataset_automation.overlap.pipeline import (
     MODULE,
     SequenceFile,
+    SequenceReport,
     record_file_sequence,
 )
 from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
@@ -41,62 +44,15 @@ DEFAULT_NEIGHBOURS = 5
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument("image_root", type=Path)
-    parser.add_argument("--neighbours", type=int, default=DEFAULT_NEIGHBOURS)
-    parser.add_argument("--database", type=Path, default=DATABASE)
-    parser.add_argument("--output", type=Path, default=OUTPUT_DIR)
-    parser.add_argument(
-        "--mermaid-calibration",
-        action="store_true",
-        help="undistort with Mermaid's camera and measure the camera displacement",
-    )
-    parser.add_argument(
-        "--register",
-        action="store_true",
-        help="add image files missing from the images table first",
-    )
-    arguments = parser.parse_args()
+    arguments = parse_arguments()
     logging.basicConfig(level=logging.INFO, format="%(message)s")
-
     arguments.database.parent.mkdir(parents=True, exist_ok=True)
     connection = open_database(arguments.database)
-    if arguments.register:
-        added = register_image_files(
-            connection, arguments.image_root, f"{MODULE}-register"
-        )
-        print(f"registered {added} images")
-    files = sorted(
-        (
-            SequenceFile(image.image_id, image.path)
-            for image in images_under(connection, arguments.image_root)
-        ),
-        key=lambda file: file.path,
-    )
-    if not files:
-        raise SystemExit(
-            f"no image under {arguments.image_root} in {arguments.database}: "
-            "run ingestion first, or pass --register"
-        )
+    files = sequence_files(connection, arguments.image_root, arguments.register)
 
     extractor, matcher = SiftExtractor(), RatioTestMatcher()
     run_id = start_run(
-        connection,
-        MODULE,
-        {
-            "mode": "sequential",
-            "image_root": str(arguments.image_root.resolve()),
-            "neighbour_count": arguments.neighbours,
-            "extractor": asdict(extractor),
-            "matcher": asdict(matcher),
-            "method": "homography",
-            "calibration": "mermaid" if arguments.mermaid_calibration else None,
-            "min_inliers": MIN_INLIERS,
-            "ransac_threshold_px": RANSAC_THRESHOLD_PX,
-            "min_inlier_spread": MIN_INLIER_SPREAD,
-        },
+        connection, MODULE, run_parameters(arguments, extractor, matcher)
     )
     print(f"run {run_id}: {len(files)} images, {arguments.neighbours} neighbours each")
     intrinsics = MERMAID_INTRINSICS if arguments.mermaid_calibration else None
@@ -115,7 +71,71 @@ def main() -> None:
         intrinsics,
         displacements_path,
     )
+    print_report(report, displacements_path)
 
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("image_root", type=Path)
+    parser.add_argument("--neighbours", type=int, default=DEFAULT_NEIGHBOURS)
+    parser.add_argument("--database", type=Path, default=DATABASE)
+    parser.add_argument("--output", type=Path, default=OUTPUT_DIR)
+    parser.add_argument(
+        "--mermaid-calibration",
+        action="store_true",
+        help="undistort with Mermaid's camera and measure the camera displacement",
+    )
+    parser.add_argument(
+        "--register",
+        action="store_true",
+        help="add image files missing from the images table first",
+    )
+    return parser.parse_args()
+
+
+def sequence_files(
+    connection: sqlite3.Connection, image_root: Path, register_first: bool
+) -> list[SequenceFile]:
+    """Registered image files under `image_root`, in capture order (the order of the paths)."""
+    if register_first:
+        added = register_image_files(connection, image_root, f"{MODULE}-register")
+        print(f"registered {added} images")
+    files = sorted(
+        (
+            SequenceFile(image.image_id, image.path)
+            for image in images_under(connection, image_root)
+        ),
+        key=lambda file: file.path,
+    )
+    if not files:
+        raise SystemExit(
+            f"no registered image under {image_root}: run ingestion first, "
+            "or pass --register"
+        )
+    return files
+
+
+def run_parameters(
+    arguments: argparse.Namespace, extractor: SiftExtractor, matcher: RatioTestMatcher
+) -> dict[str, object]:
+    return {
+        "mode": "sequential",
+        "image_root": str(arguments.image_root.resolve()),
+        "neighbour_count": arguments.neighbours,
+        "extractor": asdict(extractor),
+        "matcher": asdict(matcher),
+        "method": "homography",
+        "calibration": "mermaid" if arguments.mermaid_calibration else None,
+        "min_inliers": MIN_INLIERS,
+        "ransac_threshold_px": RANSAC_THRESHOLD_PX,
+        "min_inlier_spread": MIN_INLIER_SPREAD,
+        "spread_inlier_share": SPREAD_INLIER_SHARE,
+    }
+
+
+def print_report(report: SequenceReport, displacements_path: Path | None) -> None:
     recording = report.recording
     unknown_count = sum(recording.unknown.values())
     print(f"{recording.known} known overlaps, {unknown_count} unknown")

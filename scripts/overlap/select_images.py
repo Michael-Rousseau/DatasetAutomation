@@ -19,11 +19,11 @@ poses to the summary: the seafloor area a 3D reconstruction can still see with t
 
 import argparse
 import csv
+import sqlite3
 from pathlib import Path
 
 from matplotlib.figure import Figure
 
-from dataset_automation.camera.frame import image_border_pixels
 from dataset_automation.overlap.extraction import (
     CurvePoint,
     SelectionRow,
@@ -37,19 +37,17 @@ from dataset_automation.overlap.stored_pairs import (
     latest_overlap_run,
     load_stored_sequence,
 )
-from dataset_automation.reference.evaluation import RIM_M, evaluate_selection
-from dataset_automation.reference.footprints import camera_rays, compute_footprints
+from dataset_automation.reference.evaluation import (
+    RIM_M,
+    SelectionEvaluation,
+    evaluate_selection,
+)
 from dataset_automation.reference.images import match_poses_to_images
-from dataset_automation.reference.intrinsics import MERMAID_INTRINSICS
+from dataset_automation.reference.mermaid import load_mermaid_reference
 from dataset_automation.reference.observability import (
     MIN_FAN_DEG,
     MIN_VIEWS,
     grid_over,
-)
-from dataset_automation.reference.poses import camera_centres, load_camera_poses
-from dataset_automation.reference.seafloor import (
-    altitude_from_gsd,
-    plane_below_lowest_cameras,
 )
 from dataset_automation.storage.database import RunId, open_database, start_run
 
@@ -58,36 +56,12 @@ OUTPUT_DIR = Path("outputs/selection")
 MODULE = "selection"
 DEFAULT_OVERLAP = 0.80
 CURVE_THRESHOLDS = (0.95, 0.90, 0.85, 0.80, 0.75, 0.70, 0.60, 0.50)
-# Smallest ground sampling distance announced for Mermaid: it anchors the seafloor plane.
-MERMAID_MIN_GSD_M = 0.0005
-BORDER_SAMPLES_PER_SIDE = 25
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-    parser.add_argument("--overlap", type=float, default=DEFAULT_OVERLAP)
-    parser.add_argument(
-        "--overlap-run", type=int, help="run that wrote the pairs (default: latest)"
-    )
-    parser.add_argument("--database", type=Path, default=DATABASE)
-    parser.add_argument("--output", type=Path, default=OUTPUT_DIR)
-    parser.add_argument(
-        "--mermaid-poses",
-        type=Path,
-        help="reference poses of Mermaid (XML): evaluate what the kept images still see",
-    )
-    arguments = parser.parse_args()
-
+    arguments = parse_arguments()
     connection = open_database(arguments.database)
-    overlap_run = (
-        RunId(arguments.overlap_run)
-        if arguments.overlap_run is not None
-        else latest_overlap_run(connection)
-    )
-    if overlap_run is None:
-        raise SystemExit("no overlap run yet: run scripts/overlap/run_sequential.py")
+    overlap_run = requested_or_latest_run(connection, arguments.overlap_run)
     sequence = load_stored_sequence(connection, overlap_run)
     if not sequence.paths:
         raise SystemExit(f"run {overlap_run} has no pair in {arguments.database}")
@@ -106,6 +80,12 @@ def main() -> None:
             "measure": "earlier_in_later",
         },
     )
+    summary = summarize(sequence, rows, arguments.overlap, overlap_run, run_id)
+    if arguments.mermaid_poses is not None:
+        summary += evaluate_with_mermaid_poses(
+            arguments.mermaid_poses, sequence.paths, kept
+        )
+
     run_directory = arguments.output / f"run_{run_id}"
     run_directory.mkdir(parents=True, exist_ok=True)
     (run_directory / "kept_images.txt").write_text(
@@ -114,14 +94,38 @@ def main() -> None:
     write_images(run_directory / "images.csv", sequence.paths, rows)
     write_curve(run_directory / "curve.csv", curve)
     plot_curve(curve, arguments.overlap).savefig(run_directory / "curve.png", dpi=110)
-    summary = summarize(sequence, rows, arguments.overlap, overlap_run, run_id)
-    if arguments.mermaid_poses is not None:
-        summary += evaluate_with_mermaid_poses(
-            arguments.mermaid_poses, sequence.paths, kept
-        )
     (run_directory / "summary.txt").write_text(summary)
     print(summary, end="")
     print(f"written to {run_directory}")
+
+
+def parse_arguments() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    parser.add_argument("--overlap", type=float, default=DEFAULT_OVERLAP)
+    parser.add_argument(
+        "--overlap-run", type=int, help="run that wrote the pairs (default: latest)"
+    )
+    parser.add_argument("--database", type=Path, default=DATABASE)
+    parser.add_argument("--output", type=Path, default=OUTPUT_DIR)
+    parser.add_argument(
+        "--mermaid-poses",
+        type=Path,
+        help="reference poses of Mermaid (XML): evaluate what the kept images still see",
+    )
+    return parser.parse_args()
+
+
+def requested_or_latest_run(
+    connection: sqlite3.Connection, requested: int | None
+) -> RunId:
+    if requested is not None:
+        return RunId(requested)
+    latest = latest_overlap_run(connection)
+    if latest is None:
+        raise SystemExit("no overlap run yet: run scripts/overlap/run_sequential.py")
+    return latest
 
 
 def write_images(
@@ -208,43 +212,35 @@ def evaluate_with_mermaid_poses(
     poses_path: Path, paths: list[Path], kept: list[int]
 ) -> str:
     """Seafloor area a 3D reconstruction can see with all images and with the kept ones."""
-    poses = load_camera_poses(poses_path)
-    pose_of_stem = {label: index for index, label in enumerate(poses.labels)}
-    match = match_poses_to_images(poses.labels, paths)
+    reference = load_mermaid_reference(poses_path)
+    labels = reference.poses.labels
+    pose_of_stem = {label: index for index, label in enumerate(labels)}
+    match = match_poses_to_images(labels, paths)
     if match.images_without_pose:
         raise SystemExit(
             f"{len(match.images_without_pose)} images have no pose in {poses_path}"
         )
-    centres = camera_centres(poses)
-    plane = plane_below_lowest_cameras(
-        centres[:, 2],
-        altitude_from_gsd(MERMAID_MIN_GSD_M, MERMAID_INTRINSICS.focal_px),
-    )
-    border = image_border_pixels(
-        MERMAID_INTRINSICS.width_px,
-        MERMAID_INTRINSICS.height_px,
-        BORDER_SAMPLES_PER_SIDE,
-    )
-    footprints = compute_footprints(
-        poses, camera_rays(MERMAID_INTRINSICS, border), plane
-    )
-    grid = grid_over(footprints)
+    grid = grid_over(reference.footprints)
     cameras = [pose_of_stem[path.stem] for path in paths]
     evaluation = evaluate_selection(
         grid,
-        footprints,
-        centres,
-        plane.height_m,
+        reference.footprints,
+        reference.centres,
+        reference.seafloor_height_m,
         cameras,
         [cameras[position] for position in kept],
     )
+    return describe(evaluation, grid.cell_m)
+
+
+def describe(evaluation: SelectionEvaluation, cell_m: float) -> str:
     links = "; ".join(
         f"{kept_count} below {overlap:.2f} ({all_count} with all images)"
         for overlap, (all_count, kept_count) in evaluation.weak_links.items()
     )
     return (
         "evaluation from the reference poses (flat seafloor, cells of "
-        f"{grid.cell_m * 100:.0f} cm; reconstructible = at least {MIN_VIEWS} images "
+        f"{cell_m * 100:.0f} cm; reconstructible = at least {MIN_VIEWS} images "
         f"from directions at least {MIN_FAN_DEG:.0f} degrees apart)\n"
         f"reconstructible area: {evaluation.reconstructible_m2:.0f} m2 with all images, "
         f"{evaluation.kept_reconstructible_m2:.0f} m2 with the kept ones "

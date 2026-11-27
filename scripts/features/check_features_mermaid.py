@@ -7,7 +7,7 @@ and 5 apart (the sequential mode compares each image with its k = 5 neighbours).
 the fair comparison: a noisy detector can produce many matches, not many consistent ones.
 Low percentiles matter most: they are the low-contrast sand images. Also draws the matches of
 one consecutive pair in outputs/features_matches.png. This is the measurement behind the
-extractors' defaults (docs/step0.md).
+extractors' defaults (docs/overlap_journal.md).
 """
 
 import argparse

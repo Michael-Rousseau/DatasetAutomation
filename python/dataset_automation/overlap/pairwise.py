@@ -33,11 +33,17 @@ MIN_INLIERS = 15
 # 3 px cut unknowns from 80 % to 73 % at 20–40 % overlap with the same error; 15 px started
 # accepting overlaps for pairs that share nothing.
 RANSAC_THRESHOLD_PX = 8.0
-# Area of the inliers' convex hull over the estimated common area. Identical GCP target plates
-# (same pattern, different number) produced a consistent homography with all inliers on the
-# plate: spread 0.005 for a claimed 79 % overlap of images that do not overlap. The 102 correct
-# Mermaid estimates never went below 0.026 (p1 0.044). One false case observed: revisit with data.
+# Area of the convex hull of the central inliers over the estimated common area. Identical GCP
+# target plates (same pattern, different number) produce a consistent homography with every
+# inlier on the plate, and so does one plate when nothing around it matches: 6 such Mermaid
+# pairs have a spread of 0.003–0.005, for claimed overlaps up to 0.79 between images that share
+# little or nothing. Correct estimates stay above: 1st percentile 0.053 for 116 pairs of
+# neighbours, 0.020 for 150 revisits between survey lines.
 MIN_INLIER_SPREAD = 0.01
+# The hull is taken over the inliers closest to their median point: a single stray inlier at the
+# other end of the image once inflated the hull of 16 inliers on a plate from 0.001 to 0.023,
+# and a false link between two places got through.
+SPREAD_INLIER_SHARE = 0.9
 
 
 class UnknownReason(Enum):
@@ -110,8 +116,7 @@ def estimate_homography_overlap(
         )
     # A repeated planar object (e.g. two identical target plates) fits a homography perfectly
     # from a few square centimetres: a real overlap spreads its inliers over the common area.
-    inlier_hull = MultiPoint(points_a[fit.inliers]).convex_hull
-    if inlier_hull.area / shared_in_a < MIN_INLIER_SPREAD:
+    if _central_hull_area(points_a[fit.inliers]) / shared_in_a < MIN_INLIER_SPREAD:
         return _unknown(
             method,
             len(matches),
@@ -173,6 +178,12 @@ def estimate_hull_overlap(
         iou=None,
         unknown_reason=None,
     )
+
+
+def _central_hull_area(points: np.ndarray) -> float:
+    distance = np.linalg.norm(points - np.median(points, axis=0), axis=1)
+    central = points[distance <= np.quantile(distance, SPREAD_INLIER_SHARE)]
+    return MultiPoint(central).convex_hull.area
 
 
 def _area(intersection: BaseGeometry, first: Polygon, second: Polygon) -> float:
