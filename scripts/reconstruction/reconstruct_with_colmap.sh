@@ -28,7 +28,10 @@ stage() {
 mkdir -p $W
 rm -rf $W/database.db $W/database.db-shm $W/database.db-wal $W/sparse $W/sparse_text
 mkdir -p $W/sparse $W/sparse_text
-uv run python scripts/reconstruction/export_colmap_pairs.py $IMAGES --output $W ${KEPT:+--kept $KEPT}
+# An array: zsh would pass "--kept <file>" written inline as a single word.
+selection=()
+[[ -n $KEPT ]] && selection=(--kept $KEPT)
+uv run python scripts/reconstruction/export_colmap_pairs.py $IMAGES --output $W $selection
 stage extract colmap feature_extractor --database_path $W/database.db --image_path $IMAGES \
   --image_list_path $W/image_list.txt --ImageReader.single_camera 1 \
   --ImageReader.camera_model OPENCV --FeatureExtraction.use_gpu 0 \

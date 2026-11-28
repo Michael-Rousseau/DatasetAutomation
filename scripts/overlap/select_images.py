@@ -49,6 +49,7 @@ from dataset_automation.overlap.stored_pairs import (
     latest_overlap_run,
     load_mutual_overlaps,
     load_stored_sequence,
+    weakly_matched_images,
 )
 from dataset_automation.overlap.support_selection import (
     CHAIN_OVERLAP,
@@ -104,7 +105,7 @@ def main() -> None:
     selection = (
         select_by_overlap(sequence, arguments.overlap or DEFAULT_OVERLAP)
         if arguments.min_views is None
-        else select_by_support(connection, sequence, arguments)
+        else select_by_support(connection, sequence, arguments, overlap_run)
     )
     kept = selection.kept
     rows = selection_rows(len(sequence.paths), sequence.earlier_in_later, kept)
@@ -151,6 +152,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     loops.add_argument(
         "--no-loops", action="store_true", help="use the neighbours in time only"
+    )
+    parser.add_argument(
+        "--min-inliers",
+        type=int,
+        default=0,
+        help="with --min-views, keep every image tied to a neighbour by fewer matches "
+        "than this: hazy stretches, where a reconstruction holds worst",
     )
     parser.add_argument(
         "--angles",
@@ -208,6 +216,7 @@ def select_by_support(
     connection: sqlite3.Connection,
     sequence: StoredSequence,
     arguments: argparse.Namespace,
+    overlap_run: RunId,
 ) -> Selection:
     image_count = len(sequence.paths)
     loop_run = (
@@ -226,15 +235,23 @@ def select_by_support(
         with angles_path.open(newline="") as file:
             angles = (angles or {}) | read_view_angles(file, sequence.image_ids)
 
+    protected = weakly_matched_images(
+        connection, overlap_run, sequence.image_ids, arguments.min_inliers
+    )
+
     return Selection(
         kept=select_supported_subset(
-            image_count, overlaps, arguments.min_views, angles
+            image_count, overlaps, arguments.min_views, angles, protected
         ),
         curve=[
             CurvePoint(
                 min_views,
                 image_count,
-                len(select_supported_subset(image_count, overlaps, min_views, angles)),
+                len(
+                    select_supported_subset(
+                        image_count, overlaps, min_views, angles, protected
+                    )
+                ),
             )
             for min_views in CURVE_MIN_VIEWS
         ],
@@ -248,6 +265,7 @@ def select_by_support(
             "support_overlap": SUPPORT_OVERLAP,
             "min_angle_deg": MIN_ANGLE_DEG,
             "chain_overlap": CHAIN_OVERLAP,
+            "min_inliers": arguments.min_inliers,
         },
         description=(
             f"kept images that still see each image: at least {arguments.min_views}\n"
@@ -262,6 +280,12 @@ def select_by_support(
                 if angles is None
                 else f"angles between views: known for {len(angles)} pairs, two views "
                 f"must be {MIN_ANGLE_DEG:.0f} degrees apart\n"
+            )
+            + (
+                f"images kept for being tied to a neighbour by fewer than "
+                f"{arguments.min_inliers} matches: {len(protected)}\n"
+                if arguments.min_inliers
+                else ""
             )
         ),
     )

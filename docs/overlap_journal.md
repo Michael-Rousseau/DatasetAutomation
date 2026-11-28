@@ -829,3 +829,32 @@ So this is a property of the survey, not of a selection, and it argues for keepi
 where the matches are few: neither selection rule looks at the number of inliers. Not checked:
 whether the reference poses themselves are less reliable there, which would inflate the
 distances as much as a bad reconstruction would.
+
+### Keeping the weakly matched images (branch `a/protect-weak-stretches`, 2026-11-28)
+
+`select_images.py --min-views 5 --min-inliers 300` keeps every image tied to the image before
+or after it by fewer than 300 matches that agree: 73 images on Mermaid, in three stretches
+(around images 190–200, 790–802 and 1156–1168). The selection goes from 606 to 616 images
+only, as it removes a little more elsewhere. Reconstructed with COLMAP like the others:
+
+| Between images 780 and 806 | Images asked | Median distance | Worst | Beyond 20 cm |
+|---|---|---|---|---|
+| 5 views | 15 | 10.6 cm | 1.4 m | 6 |
+| 5 views, weakly matched kept | 20 | 7.5 cm | 0.3 m | 2 |
+| 1 image in 2 | 14 | 8.6 cm | 0.8 m | 3 |
+| overlap ≥ 0.80 | 10 | 18.6 cm | 5.6 m | 4 |
+
+Over the whole set the protected selection is at 1.9 cm in median, with 4 cameras beyond
+20 cm (6 without the protection) and none beyond 1 m (1 without). Image 795 is still not
+placed. Two of the 4 are new and elsewhere, images 71 and 72.
+
+- The stretch is better placed with the protection, but **one run each does not prove it**:
+  how much two runs of the same set differ has not been measured, and two cameras went wrong
+  elsewhere.
+- **The overlap rule thins this stretch the most** (10 images of 27, for 859 kept in all) and
+  places it worst: the overlap is high there because the camera is high, which is exactly
+  where the matches are few. A high overlap is not a safe reason to remove an image.
+
+The first run of `reconstruct_with_colmap.sh` with a list of kept images failed: zsh passed
+`--kept <file>` as one word. Fixed here; the script merged before did not work with a list.
+The times of this run include hours of sleep of the machine and are not usable.

@@ -10,7 +10,7 @@ It does not decide how many images a reconstruction needs: depth precision follo
 of images kept, whatever the rule.
 """
 
-from collections.abc import Mapping
+from collections.abc import Collection, Mapping
 
 Pair = tuple[int, int]
 
@@ -28,6 +28,7 @@ def select_supported_subset(
     mutual_overlaps: Mapping[Pair, float],
     min_views: int,
     view_angles: Mapping[Pair, float] | None = None,
+    protected: Collection[int] = (),
 ) -> list[int]:
     """Positions of the images to keep so that every image has `min_views` kept views.
 
@@ -40,7 +41,9 @@ def select_supported_subset(
     only the number of views counts.
 
     An image that does not have this support with every image kept is kept: nothing known
-    says it is redundant. So are the first and the last image. Greedy, most seen images
+    says it is redundant. So are the first and the last image, and the `protected` ones:
+    those the caller knows to be hard to relate to their neighbours, where an overlap says
+    little about how well a reconstruction will hold. Greedy, most seen images
     first; the result depends on that order and is not the smallest possible subset.
     """
     if min_views < 1:
@@ -49,7 +52,7 @@ def select_supported_subset(
     # Only what holds with every image kept is asked to keep holding: an image that never
     # had the support can neither be removed nor stop another one from being removed.
     supported = {image for image in range(image_count) if support.holds(image)}
-    candidates = set(supported)
+    candidates = supported - set(protected)
 
     removed_one = True
     while removed_one:

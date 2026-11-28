@@ -98,5 +98,30 @@ def load_mutual_overlaps(
     }
 
 
+def weakly_matched_images(
+    connection: sqlite3.Connection,
+    run_id: RunId,
+    image_ids: Sequence[int],
+    min_inliers: int,
+) -> set[int]:
+    """Positions of the images tied to the image before or after them by fewer than
+    `min_inliers` matches that agree.
+
+    Where the water is thick or the camera high, neighbours still overlap but few points
+    say so: on Mermaid these are the images a reconstruction places worst.
+    """
+    position = {image_id: index for index, image_id in enumerate(image_ids)}
+    pairs = connection.execute(
+        "SELECT image_a_id, image_b_id FROM pairs WHERE run_id = ? AND inlier_count < ?",
+        (run_id, min_inliers),
+    )
+    weak: set[int] = set()
+    for image_a_id, image_b_id in pairs:
+        first, second = position.get(image_a_id), position.get(image_b_id)
+        if first is not None and second is not None and abs(first - second) == 1:
+            weak.update((first, second))
+    return weak
+
+
 def _ordered(first: int, second: int) -> tuple[int, int]:
     return (first, second) if first < second else (second, first)

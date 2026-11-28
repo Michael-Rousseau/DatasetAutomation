@@ -110,3 +110,13 @@ def test_no_image_selects_nothing() -> None:
 def test_rejects_a_number_of_views_below_one() -> None:
     with pytest.raises(ValueError):
         select_supported_subset(5, line(5, reach=2), min_views=0)
+
+
+def test_protected_images_are_kept() -> None:
+    overlaps = line(12, reach=3)
+    freely = select_supported_subset(12, overlaps, min_views=3)
+    removed = sorted(set(range(12)) - set(freely))
+
+    kept = select_supported_subset(12, overlaps, min_views=3, protected=removed)
+
+    assert set(removed) <= set(kept)

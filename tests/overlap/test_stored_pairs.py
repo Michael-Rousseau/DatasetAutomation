@@ -7,6 +7,7 @@ from dataset_automation.overlap.stored_pairs import (
     latest_overlap_run,
     load_mutual_overlaps,
     load_stored_sequence,
+    weakly_matched_images,
 )
 from dataset_automation.storage.database import RunId, open_database, start_run
 
@@ -146,3 +147,24 @@ def test_latest_run_of_another_module(
     start_run(database, "overlap", {}, code_version="test")
 
     assert latest_overlap_run(database, "overlap-loops") == loops
+
+
+def test_images_tied_to_a_neighbour_by_few_matches(
+    database: sqlite3.Connection, run_id: RunId
+) -> None:
+    ids = [register(database, run_id, f"dive/000{index}.jpg") for index in range(5)]
+    for first, second, inliers in ((0, 1, 900), (1, 2, 80), (2, 3, 700), (3, 4, 600)):
+        database.execute(
+            "INSERT INTO pairs (image_a_id, image_b_id, method, inlier_count, "
+            "overlap_a_in_b, overlap_b_in_a, run_id) VALUES (?, ?, 'homography', ?, 0.8, "
+            "0.8, ?)",
+            (ids[first], ids[second], inliers, run_id),
+        )
+    # Few matches between images two apart say nothing about the chain.
+    database.execute(
+        "INSERT INTO pairs (image_a_id, image_b_id, method, inlier_count, run_id) "
+        "VALUES (?, ?, 'homography', 10, ?)",
+        (ids[2], ids[4], run_id),
+    )
+
+    assert weakly_matched_images(database, run_id, ids, min_inliers=200) == {1, 2}
