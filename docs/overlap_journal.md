@@ -858,3 +858,27 @@ placed. Two of the 4 are new and elsewhere, images 71 and 72.
 The first run of `reconstruct_with_colmap.sh` with a list of kept images failed: zsh passed
 `--kept <file>` as one word. Fixed here; the script merged before did not work with a list.
 The times of this run include hours of sleep of the machine and are not usable.
+
+### The protection holds over repeated runs (2026-11-28)
+
+The mapping was run twice more for both selections, from the same features and matches (so
+the chance in the matching itself is not in this measure), with the machine kept awake.
+
+| Between images 780 and 806 | Run 1 | Run 2 | Run 3 |
+|---|---|---|---|
+| 5 views: worst camera | 1.42 m | 0.81 m | 1.34 m |
+| 5 views: cameras beyond 20 cm | 6 | 3 | 5 |
+| 5 views, weakly matched kept: worst camera | 0.34 m | 0.34 m | 0.34 m |
+| 5 views, weakly matched kept: cameras beyond 20 cm | 2 | 2 | 2 |
+
+- **The effect is real**: the worst of the three runs with the protection is better than the
+  best of the three without.
+- Without the protection the stretch moves from one run to the next; with it the three runs
+  give the same numbers: the stretch is no longer what the mapper hesitates on.
+- Images 71 and 72 are beyond 20 cm (0.42 m at worst) in the three protected runs and in none
+  of the others: not chance, as first supposed, and not explained. The protection moves a
+  few removals elsewhere, and that place may be where it costs.
+- Everywhere else nothing changes: 1.9 cm in median in the six runs, 605 and 615 images placed.
+
+Mapping times, now usable: about 230 s for 606 images and 325 s for 616. Ten more images do
+not explain 40 % more time; the cause was not looked for.
